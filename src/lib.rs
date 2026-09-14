@@ -7,11 +7,19 @@
 //! strictly O(1) state footprint (160 bytes in L1D cache), and zero-allocation hot-path inference.
 
 pub mod classic;
+pub mod qreno;
 pub mod srx_v01;
 pub mod srx_v02;
 pub mod srx_v03;
 pub mod srx_v04;
 pub mod srx_v05;
+
+// Re-export Q-RENO module
+pub use qreno::{
+    coarse_grain_cluster, is_delimiter_byte, partition_into_clusters, solve_ground_state,
+    solve_ground_state_vjp, BondParams, Cluster, GroundState, OperatorMeasure, QrenoAdamW,
+    QrenoConfig, QrenoField, QrenoGrad, QrenoTokenizer, QrenoWeights, MAX_CLUSTER_LEN as QRENO_MAX_CLUSTER_LEN,
+};
 
 // Re-export classic transformer module
 pub use classic::{
