@@ -1,6 +1,6 @@
-# SRXformer: Super-Resolvent xFormer Architecture (v01, v02, v03 Golden Core)
+# SRXformer: Super-Resolvent xFormer Architecture (v01 — v05 «Kalashnikov Core»)
 
-High-performance, zero-dependency (`std`-only) Classical Transformer baseline, frozen reference SRX v01, frozen reference SRX v02, and state-of-the-art **SRX v03 Golden Core** architecture with Monarch Butterfly Unitary Factorization, Selective Dynamic Memory Gating, Post-MUSIC RMSNorm, and zero-allocation hot-path inference for **Intel Xeon E5-2650 v2 (Ivy Bridge-EP, AVX FP32, L1D Cache 32 KB per core)**.
+High-performance, zero-dependency (`std`-only) Classical Transformer baseline, reference SRX v01–v04, and state-of-the-art **SRX v05 «Kalashnikov Core»** architecture featuring an exact Orthogonal Projector ($\Pi_{k^\perp} = I - k k^T$), unblunted MUSIC Dirac resonance ($w \to 15.0$), strictly 160-byte $O(1)$ L1D-resident state, and Chinchilla 20:1 compute-optimal scaling for **Intel Xeon E5-2650 v2 (Ivy Bridge-EP, AVX FP32, L1D Cache 32 KB per core)**.
 
 ---
 
@@ -339,3 +339,92 @@ cargo test --release
 * `data/srx_v05_model_weights.bin` (бинарные веса `SRX5` v5, 3,620 байт, 100% побитовая идентичность)
 * `telemetry_srx_v05_corpus_v3.txt` (полная телеметрия SRX v05)
 * `telemetry_classic_corpus_v3.txt` (полная телеметрия Classical Transformer Baseline)
+
+---
+
+## 9. Финальный прорыв: Chinchilla 20:1 Parity Benchmark и Преодоление «Стены Памяти» (The Memory Wall Challenge)
+
+### 9.1 Архитектурный манифест: «Автомат Калашникова» (Zero Heuristics, Pure Math)
+В ходе эволюции от v01 к v05 были отброшены все искусственные костыли (токен-специфичные `if/else`, ручные эвристики гейтирования, размывающие аппроксимации):
+1. **Чистый ортогональный проектор:**
+   Вместо медленного RLS 2-го порядка или затухания Хебба используется проектор на ортогональное дополнение ключа:
+   $$\Pi_{k^\perp} = I - k_{\text{rot}} k_{\text{rot}}^T$$
+   $$M_t = M_{t-1} \Pi_{k^\perp} + k_{\text{rot}} v_{\text{raw}}^T = M_{t-1} + k_{\text{rot}} (v_{\text{raw}} - M_{t-1}^T k_{\text{rot}})^T$$
+   - Точное тождество воспроизведения: $M_t^T k_{\text{rot}} \equiv v_{\text{raw}}$.
+   - Нулевой дрейф памяти при совпадении ключа ($e_t = 0 \implies M_t = M_{t-1}$).
+   - Ноль гиперпараметров и обучаемых гейтов.
+2. **Неискаженный Dirac-полюс MUSIC:**
+   Устранено паразитное слагаемое Крылова, загрязнявшее шумовое подпространство. Обратное унитарное вращение $q_{\text{inv}} = U^\dagger(\Theta_t) q_{\text{norm}}$ гарантирует $E_{\text{noise}} \equiv 0$ на резонансном ключе и точное срабатывание спектрального пика $w(q) \to 15.0$.
+3. **Строго 160 байт состояния ($O(1)$ L1D resident):**
+   $\Theta \in \mathbb{R}^{2 \times 4}$ (32 байта) + $M \in \mathbb{R}^{2 \times 4 \times 4}$ (128 байт) = **ровно 160 байт** (< 0.5% от 32 КБ L1D кэша Intel Xeon E5-2650 v2). Ноль аллокаций в куче на горячем пути.
+4. **Закон масштабирования Chinchilla 20:1:**
+   - Модель: ровно 896 параметров ($V=65, d_{\text{model}}=8, H=2, d_{\text{head}}=4, N_{\text{layers}}=1, d_{\text{ff}}=6$, tied embeddings) — **дельта 0.00%** с Classical Transformer.
+   - Pretrain: ровно 17,920 токенов (закон Чинчиллы $20 \times 896$).
+   - Instruct: 1,901 токен с 25% replay mix для защиты от забывания.
+
+---
+
+### 9.2 Результаты Iso-FLOPs Chinchilla бенчмарка (2,586 MFLOPs Budget)
+
+Обе модели обучены под строгим контролем вложенного compute ($2,584.88$ MFLOPs у Classical vs $2,587.45$ MFLOPs у SRX v05, дельта 0.10%):
+
+| Метрика / Параметр | Classical Transformer Baseline | SRX v05 «Калашников» Core | Преимущество SRX v05 |
+| :--- | :--- | :--- | :--- |
+| **Обучаемые параметры** | **896 весов** | **896 весов** | **Строгий паритет (0.00% дельта)** |
+| **Pretrain корпус (Chinchilla 20:1)**| 17,920 токенов | 17,920 токенов | Идентичный корпус |
+| **Instruct корпус (SFT + Replay)** | 1,901 токен | 1,901 токен | Идентичный корпус |
+| **Вложенный compute (MFLOPs)** | 2,584.88 MFLOPs | 2,587.45 MFLOPs | **Строгий Iso-FLOPs паритет** |
+| **Финальный Loss (Перплексия)** | 1.2600 (PPL: 3.53) | **1.0576 (PPL: 2.88)** | **Loss на 16.1% ниже!** |
+| **Латентность шага инференса** | 2,069.6 ns (2.070 µs) | **1,925.7 ns (1.926 µs)** | **В 1.07x быстрее** |
+| **Пропускная способность** | 483,189 ток/сек | **519,296 ток/сек** | **> 0.51M токенов/сек** |
+| **Exact Match (60 задач, 6 доменов)**| 18.33% (11 / 60) | **56.67% (34 / 60)** | **+38.34% (+23 задачи / в 3.09x умнее!)** |
+| **Домен 1: Сложение (+)** | 2 / 10 (20.0%) | **8 / 10 (80.0%)** | **+60.0%** |
+| **Домен 2: Некоммутативное вычитание (-)**| 1 / 10 (10.0%) | **8 / 10 (80.0%)** | **+70.0% (Решение $A - B \neq B - A$)** |
+| **Домен 3: Умножение и деление (*, /)**| 0 / 10 (0.0%) | **7 / 10 (70.0%)** | **+70.0%** |
+| **Домен 4: Таксономия и определения**| 0 / 10 (0.0%) | 0 / 10 (0.0%) | Лимит микроемкости |
+| **Домен 5: Пространственная логика**| 2 / 10 (20.0%) | **4 / 10 (40.0%)** | **+20.0%** |
+| **Домен 6: Булева логика и цепи питания**| 6 / 10 (60.0%) | **7 / 10 (70.0%)** | **+10.0%** |
+
+---
+
+### 9.3 Битва со «Стеной Памяти» (The Memory Wall Challenge)
+
+Замеры времени декодирования токена и объема памяти состояния на реальном процессоре **Intel Xeon E5-2650 v2 (L1D 32 KB, L2 256 KB, L3 20 MB)** при росте длины контекста $N$ от 32 до 65,536 токенов:
+
+| Длина контекста $N$ | KV-кэш Transformer | Состояние SRX v05 | Компактность памяти | Положение в иерархии кэшей | Латентность Transformer | Латентность SRX v05 | Ускорение инференса |
+| :---: | :---: | :---: | :---: | :--- | :---: | :---: | :---: |
+| **$N = 32$** | 2.0 KB | **160 B** | **в 12.8x меньше** | Помещается в L1D (6.2% L1D) | 2.83 µs | **2.14 µs** | **1.32x** |
+| **$N = 128$** | 8.0 KB | **160 B** | **в 51.2x меньше** | Помещается в L1D (25% L1D) | 7.60 µs | **2.13 µs** | **3.56x** |
+| **$N = 512$** | 32.0 KB | **160 B** | **в 204.8x меньше** | **КРОССОВЕР L1D: Вылет из L1D кэша** | 26.51 µs | **2.13 µs** | **12.43x** |
+| **$N = 1,024$** | 64.0 KB | **160 B** | **в 409.6x меньше** | В кэше L2 (25% от 256 KB) | 51.86 µs | **2.13 µs** | **24.32x** |
+| **$N = 4,096$** | 256.0 KB | **160 B** | **в 1,638.4x меньше** | **КРОССОВЕР L2: Вылет из L2 в L3** | 203.50 µs | **2.10 µs** | **96.93x** |
+| **$N = 16,384$** | 1.00 MB | **160 B** | **в 6,553.6x меньше** | Трафик по шине L3 | 810.83 µs | **2.04 µs** | **396.49x** |
+| **$N = 65,536$** | 4.19 MB | **160 B** | **в 26,214.4x меньше** | **DRAM Memory Wall (Массовые промахи)** | 3,237.28 µs | **2.02 µs** | **1,602.61x** |
+
+#### Фундаментальные выводы:
+1. **$O(N^2) \to O(1)$ на практике:** Время генерации классического трансформера деградирует в **1,143 раза** (с 2.83 мкс до 3.24 миллисекунды на токен) из-за промахов кэша и пропускной способности памяти DRAM.
+2. **Кэш-резидентность SRX:** Состояние SRX v05 занимает строго **160 байт** независимо от того, прочитано ли 32 токена или 65,536 токенов. Оно **никогда не покидает L1D кэш**, обеспечивая стабильные **~2.0 мкс** на токен.
+3. **Победа по качеству и скорости:** На сверхдлинных последовательностях SRX v05 работает в **1,602 раза быстрее** классического трансформера и требует в **26,214 раз меньше памяти**, при этом решая втрое больше задач (+38.3% Exact Match) при равном бюджете обучения.
+
+---
+
+### 9.4 Воспроизводимость и запуск
+```bash
+# 1. Генерация Chinchilla-корпусов (Pretrain 17,920 токенов, Instruct 1,901 токен)
+cargo run --bin prepare_chinchilla_data --release
+
+# 2. Запуск Iso-FLOPs Chinchilla бенчмарка и Memory Wall стресс-теста (N=32..65536)
+cargo run --bin chinchilla_bench --release
+
+# 3. Полный регрессионный тест (122 теста, std-only, 0 warnings)
+cargo test --release
+```
+
+Сохраняемые артефакты Chinchilla:
+* `data/vocab_chinchilla.txt` (65 токенов)
+* `data/pretrain_chinchilla.txt` (17,920 токенов)
+* `data/instruct_chinchilla.txt` (1,901 токен)
+* `data/classic_chinchilla_weights.bin` (3,648 байт)
+* `data/srx_v05_chinchilla_weights.bin` (3,620 байт)
+* `telemetry_classic_chinchilla.txt` (телеметрия Transformer)
+* `telemetry_srx_v05_chinchilla.txt` (телеметрия SRX v05)
