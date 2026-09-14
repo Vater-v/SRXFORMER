@@ -5,20 +5,20 @@
 ================================================================================
 
 [1] ВЛОЖЕННЫЙ COMPUTE НА ОБУЧЕНИЕ (TRAINING COMPUTE):
-    * Вложили compute:          5289883200 FLOPs (5289.88 MFLOPs / 5.2899 GFLOPs)
-    * Время обучения:           8924.48 ms (8.924 s)
+    * Вложили compute:          4356374400 FLOPs (4356.37 MFLOPs / 4.3564 GFLOPs)
+    * Время обучения:           6785.58 ms (6.786 s)
     * Формула FLOPs:            6 * N_params * tokens_per_epoch * epochs
-                                = 6 * 882 * 2940 * 340
-    * Эффективная скорость:     592.74 MFLOP/s (0.5927 GFLOP/s)
+                                = 6 * 882 * 2940 * 280
+    * Эффективная скорость:     642.00 MFLOP/s (0.6420 GFLOP/s)
     * Начальный Loss:           4.2750 (Перплексия: 71.88)
-    * Финальный Loss:           0.7403 (Перплексия: 2.10)
-    * Всего шагов (Steps):      149600 gradient updates
+    * Финальный Loss:           0.7423 (Перплексия: 2.10)
+    * Всего шагов (Steps):      123200 gradient updates
 
 [2] COMPUTE, ЛАТЕНТНОСТЬ И ПАМЯТЬ СОСТОЯНИЯ НА ИНФЕРЕНСЕ (INFERENCE COMPUTE & MEMORY):
     * Ответ за compute:         1764 FLOPs на токен (~ 2 * N_params)
-    * Время генерации токена:   2146.4 ns (2.146 µs)
-    * Пропускная способность:   465886 токенов/сек (0.47M токенов/сек)
-    * Вычислительная скорость:  0.8218 GFLOP/s
+    * Время генерации токена:   3083.2 ns (3.083 µs)
+    * Пропускная способность:   324340 токенов/сек (0.32M токенов/сек)
+    * Вычислительная скорость:  0.5721 GFLOP/s
     * Число бенчмарк шагов:     50000 tokens decoded
     --------------------------------------------------------------------------------
     * СРАВНЕНИЕ ОБЪЕМА ПАМЯТИ СОСТОЯНИЯ (STATE MEMORY FOOTPRINT):
@@ -29,7 +29,7 @@
       - Преимущество SRX v03:   Нулевой трафик в DRAM, отсутствие падения скорости при росте N
 
 [3] КАЧЕСТВО МОДЕЛИ (QUALITY EVALUATION - EXACT MATCH):
-    * Точность (Exact Match):   86.7% (26/30 тестов пройдено)
+    * Точность (Exact Match):   93.3% (28/30 тестов пройдено)
     --------------------------------------------------------------------------------------------------------------------
     | Категория                | Статус | Промпт                    | Сгенерировано        | Ожидалось            |
     --------------------------------------------------------------------------------------------------------------------
@@ -43,13 +43,13 @@
     | Subtraction Arithmetic (Extended) | PASS   | <user> 9 - 4 = <bot>      | 5 <eos>              | 5 <eos>              |
     | Subtraction Arithmetic (Extended) | PASS   | <user> 8 - 3 = <bot>      | 5 <eos>              | 5 <eos>              |
     | Subtraction Arithmetic (Extended) | PASS   | <user> 7 - 2 = <bot>      | 5 <eos>              | 5 <eos>              |
-    | Multiplication Arithmetic | FAIL   | <user> 2 * 3 = <bot>      | 7 <eos>              | 6 <eos>              |
+    | Multiplication Arithmetic | PASS   | <user> 2 * 3 = <bot>      | 6 <eos>              | 6 <eos>              |
     | Multiplication Arithmetic | PASS   | <user> 2 * 2 = <bot>      | 4 <eos>              | 4 <eos>              |
     | Multiplication Arithmetic | PASS   | <user> 3 * 3 = <bot>      | 9 <eos>              | 9 <eos>              |
-    | Entity Fact / Definition | FAIL   | <user> кто кот <bot>      | птица это животное <eos> | кот это животное <eos> |
-    | Entity Fact / Definition | FAIL   | <user> кто пес <bot>      | птица это животное <eos> | пес это друг <eos>   |
+    | Entity Fact / Definition | FAIL   | <user> кто кот <bot>      | пес это животное <eos> | кот это животное <eos> |
+    | Entity Fact / Definition | PASS   | <user> кто пес <bot>      | пес это друг <eos>   | пес это друг <eos>   |
     | Entity Fact / Definition | PASS   | <user> кто волк <bot>     | волк это зверь <eos> | волк это зверь <eos> |
-    | Entity Fact / Definition | FAIL   | <user> кто лиса <bot>     | волк это зверь <eos> | лиса это хищник <eos> |
+    | Entity Fact / Definition | FAIL   | <user> кто лиса <bot>     | волк это хищник <eos> | лиса это хищник <eos> |
     | Spatial Reasoning        | PASS   | <user> где волк <bot>     | лес <eos>            | лес <eos>            |
     | Spatial Reasoning        | PASS   | <user> где рыба <bot>     | река <eos>           | река <eos>           |
     | Spatial Reasoning        | PASS   | <user> где кот <bot>      | дом <eos>            | дом <eos>            |
