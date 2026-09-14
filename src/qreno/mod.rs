@@ -13,12 +13,18 @@ pub mod field;
 pub mod hamiltonian;
 pub mod measure;
 pub mod model;
+pub mod segmenter;
 pub mod solver;
 
 pub use field::QrenoField;
 pub use hamiltonian::{is_delimiter_byte, partition_into_clusters, BondParams, Cluster};
 pub use measure::OperatorMeasure;
 pub use model::{QrenoAdamW, QrenoConfig, QrenoGrad, QrenoTokenizer, QrenoWeights};
+pub use segmenter::{
+    charge_distance, charge_kl_divergence, morse_bond_energy, physical_segment, SshLatticeParams,
+    SshLatticeWorkspace,
+};
 pub use solver::{
     coarse_grain_cluster, solve_ground_state, solve_ground_state_vjp, GroundState, MAX_CLUSTER_LEN,
 };
+

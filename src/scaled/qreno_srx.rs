@@ -131,6 +131,60 @@ impl QrenoSrxLM {
         generated
     }
 
+    /// Generates continuation bytes autoregressively using temperature, top-k, and repetition penalty.
+    pub fn generate_sampled(
+        &self,
+        prompt: &str,
+        max_bytes: usize,
+        cfg: &crate::scaled::generator::SamplingConfig,
+        rng: &mut crate::scaled::generator::FastRng,
+        ws: &mut ScaledWorkspace,
+    ) -> Vec<u8> {
+        let mut state = self.init_state();
+        let mut logits = vec![0.0f32; 256];
+
+        // Ingest prompt via physical quantum clusters
+        let mut ssh_ws = crate::qreno::segmenter::SshLatticeWorkspace::new();
+        let clusters = self.tokenizer.tokenize_physical(prompt, &mut ssh_ws);
+        let prompt_bytes = prompt.as_bytes();
+
+        if clusters.is_empty() {
+            for &b in prompt_bytes {
+                self.step_cluster(&[b], &mut state, &mut logits, ws);
+            }
+        } else {
+            for c in clusters {
+                let slice = &prompt_bytes[c.start..c.start + c.len];
+                self.step_cluster(slice, &mut state, &mut logits, ws);
+            }
+        }
+
+        let mut generated = Vec::with_capacity(max_bytes);
+        let mut recent_tokens = Vec::with_capacity(max_bytes);
+
+        for _ in 0..max_bytes {
+            let mut l_copy = logits.clone();
+            let chosen_b = crate::scaled::generator::sample_token(
+                &mut l_copy,
+                &recent_tokens,
+                cfg,
+                rng,
+            ) as u8;
+
+            if chosen_b == 0 || chosen_b == b'\n' {
+                break;
+            }
+
+            generated.push(chosen_b);
+            recent_tokens.push(chosen_b as usize);
+
+            // Autoregressive feedback
+            self.step_cluster(&[chosen_b], &mut state, &mut logits, ws);
+        }
+
+        generated
+    }
+
     /// Total parameter count across Q-RENO frontend and Scaled SRX core.
     pub fn param_count(&self) -> usize {
         self.tokenizer.weights.param_count() + self.transformer.param_count()

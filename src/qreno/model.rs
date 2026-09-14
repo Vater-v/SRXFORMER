@@ -288,6 +288,20 @@ impl QrenoTokenizer {
         )
     }
 
+    /// Partitions an arbitrary UTF-8 string into bound clusters via 1D SSH lattice and Morse dissociation.
+    pub fn tokenize_physical(
+        &self,
+        text: &str,
+        ws: &mut crate::qreno::segmenter::SshLatticeWorkspace,
+    ) -> Vec<Cluster> {
+        let params = crate::qreno::segmenter::SshLatticeParams {
+            field_dim: self.config.field_dim,
+            max_cluster_len: self.config.max_cluster_len,
+            ..Default::default()
+        };
+        crate::qreno::segmenter::physical_segment(text.as_bytes(), &self.weights.field, &params, ws)
+    }
+
     /// Encodes text into a sequence of continuous quasi-particle token embeddings $E_m \in \mathbb{R}^{d_{\text{model}}}$.
     pub fn encode(&self, text: &str) -> Vec<Vec<f32>> {
         let bytes = text.as_bytes();

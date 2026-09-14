@@ -1,0 +1,36 @@
+SRXFORMER: LONG-HORIZON CONTEXT & RUSSIAN FOLKLORE TELEMETRY REPORT
+Tier: Standard | Train Tokens: 2371311 | Train Speed: 39478.4 tok/s | Loss: 1.6853
+Memory Compaction at N=1024: 409.6x (Transformer 131072 B vs SRX 320 B)
+
+FOLKLORE & RHYME GENERATION RESULTS:
+Prompt: <user> хочешь сей а хочешь куй все равно получишь <bot>
+  Expected: результат
+  Greedy:  ееееееееееееее�
+  Sampled: s> ерита <useot> осте
+
+Prompt: <user> хочишь сей а хочишь кй все равно получишь <bot>
+  Expected: результат (опечатка)
+  Greedy:  ееееееееееееее�
+  Sampled: s> ьаер <eot> <er> еьи�
+
+Prompt: <user> делу время <bot>
+  Expected: потехе час
+  Greedy:  ееееееееееееее�
+  Sampled: > исо <eos> ьвер<u иу
+
+Prompt: <user> делу времья <bot>
+  Expected: потехе час (опечатка)
+  Greedy:  ееееееееееееее�
+  Sampled: s> ате<eot> сиу <uвеь
+
+Prompt: <user> без труда не выловишь <bot>
+  Expected: рыбку из пруда
+  Greedy:  ееееееееееееее�
+  Sampled: t> еиту <eoseot> о сьв
+
+Prompt: <user> терпенье и труд <bot>
+  Expected: все перетрут
+  Greedy:  ееееееееееееее�
+  Sampled: seot> аьте <bos> <eot> р�
+
+Mean Typo Cosine Invariance across 8 pairs: 0.997274
