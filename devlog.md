@@ -1304,6 +1304,109 @@ Key Mathematical Takeaway:
 4. **Verification:**
    - `cargo test --release`: **83 unit tests and 14 integration tests passing cleanly (0 failures, 0 warnings)**.
 
+---
+
+## 15. Sprint 1: Chinchilla 20:1 Optimal Scaling Law Dataset & Controlled Normalized Tokenizer (V = 65, 896 Parameters)
+
+### 15.1 Executive Summary & CTO Directive Execution
+
+In accordance with Sprint 1 directives from the CTO, the project has implemented a normalized, controlled vocabulary and dataset generator adhering strictly to the **Chinchilla compute-optimal scaling law (20:1 token-to-parameter ratio)**:
+1. **Target Model Size:** Exactly **896 parameters** (3,584 bytes FP32, 100% resident in Intel Xeon E5-2650 v2 L1D cache).
+2. **Chinchilla Pretrain Volume:** Exactly **17,920 tokens** ($896 \times 20 = 17,920$).
+3. **Instruct Dialogue Volume:** **1,901 tokens** (within target range 1,800 – 2,200 tokens) in strict `<user> ... <bot> ... <eos>` format.
+4. **Controlled Vocabulary:** $V = 65$ tokens (`VOCAB_CHINCHILLA`), providing exact parameter parity for $d_{\text{model}} = 8, H = 2, d_{\text{ff}} = 6$ ($520 + 256 + 24 + 96 = 896$).
+5. **Zero External Dependencies (`std` only):** Generator and tokenizer are implemented in pure Rust standard library.
+6. **100% Roundtrip Fidelity:** Verified across 100% of lines in both pretrain and instruct corpora (`tokenizer.decode(&tokenizer.encode(line)) == line`).
+
+---
+
+### 15.2 Mathematical Parameter Parity & Architecture Derivation
+
+To preserve L1D-cache residence (32 KB per core) and parameter parity across all architectures in SRXformer:
+- Hidden dimension: $d_{\text{model}} = 8$
+- Attention heads: $H = 2$ ($d_{\text{head}} = 4$)
+- Attention projections ($W_q, W_k, W_v, W_o$): $4 \times (8 \times 8) = 256$ parameters.
+- Normalization (RMSNorm: Pre-Attn, Pre-FFN, Final): $3 \times 8 = 24$ parameters.
+- Positional encodings: Vaswani Sinusoidal (0 parameters).
+- LM Head: Weight-tied to input embeddings (0 extra parameters).
+
+The total parameter count formula:
+$$P = V \cdot d_{\text{model}} + 4 \cdot d_{\text{model}}^2 + 3 \cdot d_{\text{model}} + 2 \cdot d_{\text{ff}} \cdot d_{\text{model}}$$
+$$P = 8 V + 256 + 24 + 16 d_{\text{ff}} = 8 V + 16 d_{\text{ff}} + 280$$
+
+Setting $P = 896$:
+$$8 V + 16 d_{\text{ff}} = 616 \implies V + 2 d_{\text{ff}} = 77$$
+
+With $V \approx 64$ tokens:
+Selecting $d_{\text{ff}} = 6$ yields:
+$$V = 77 - 2 \cdot 6 = 65 \text{ tokens}$$
+
+#### Exact Parameter Accounting Table:
+| Component | Dimensions | Parameters | Notes |
+|---|---|---|---|
+| Token Embeddings | $65 \times 8$ | 520 | Tied with LM Head |
+| Multi-Head Attention Projections | $4 \times (8 \times 8)$ | 256 | $W_q, W_k, W_v, W_o$ |
+| Normalization Gammas | $3 \times 8$ | 24 | Pre-Attn, Pre-FFN, Final Norm |
+| Feed-Forward Network | $W_1 [6, 8] + W_2 [8, 6]$ | 96 | $d_{\text{ff}} = 6$ |
+| **Total Model Parameters** | - | **896 weights** | **3,584 bytes (10.9% of 32 KB L1D cache)** |
+
+---
+
+### 15.3 Controlled Vocabulary Architecture (`VOCAB_CHINCHILLA`, V = 65)
+
+The vocabulary extends previous versions ($V_1 = 21, V_2 = 41, V_3 = 53$) with 100% backward compatibility for indices 0..52:
+- **Indices 0..3 (Control):** `<pad>` (0), `<eos>` (1), `<user>` (2), `<bot>` (3)
+- **Indices 4..12, 21..25, 41 (Arithmetic & Digits):** `0..9`, `+`, `-`, `*`, `/`, `=`
+- **Indices 13..20, 26..40, 42..52 (Ontology & Entities):**
+  - Animals & Biology: `кот`, `пес`, `животное`, `волк`, `лиса`, `заяц`, `рыба`, `птица`, `зверь`, `хищник`, `медведь`, `змея`, `щука`
+  - Habitat & Nature: `река`, `небо`, `лес`, `дом`, `дуб`, `дерево`, `тайга`, `нора`, `поле`, `трава`, `вода`
+  - Relations & Entities: `друг`, `враг`, `человек`, `ест`
+  - Basic Logic: `это`, `да`, `нет`, `кто`, `где`, `что`
+- **Indices 53..64 (Sprint 1 Foundational Concepts):**
+  - Logical Connectives: `не` (53), `как` (54), `почему` (55), `если` (56), `то` (57), `или` (58)
+  - Science & Foundations: `наука` (59), `число` (60), `модель` (61), `разум` (62), `знание` (63), `логика` (64)
+
+Tokenizer normalizes inputs through unit-stride delimiter handling (`.`, `,`, `!`, `?`, `:`, `;`, quotes, brackets) and zero-allocation case/ё mapping (`to_lowercase()`, `replace('ё', "е")`).
+
+---
+
+### 15.4 Dataset Generation (`src/bin/prepare_chinchilla_data.rs`)
+
+The utility builds three foundational artifacts:
+1. `data/vocab_chinchilla.txt`:
+   Canonical mapping of all 65 tokens formatted as `<id>: <token>`.
+2. `data/pretrain_chinchilla.txt`:
+   - **Volume:** EXACTLY 17,920 tokens (20:1 ratio to 896 parameters).
+   - **Structure:** Deterministically tiled from a rich pool of foundational axioms, syllogisms (`если ... то ...`), negations (`... это не ...`), disjunctions (`... или ...`), food chains (`волк ест заяц заяц ест трава`), spatial habitats (`где ... = ...`), and exhaustive arithmetic equations ($+$, $-$, $*$, $/$, truth checks).
+   - **Remainder Solver:** DFS combination solver partitions any token remainder into natural valid sentences.
+   - **Integrity:** Every line ends with `<eos>`; 100% roundtrip fidelity verified.
+3. `data/instruct_chinchilla.txt`:
+   - **Volume:** 1,901 tokens (1,800 – 2,200 corridor).
+   - **Structure:** 215 dialogue pairs in `<user> ... <bot> ... <eos>` format.
+   - **Coverage:**
+     - Science, AI & Epistemology QA (`что это наука`, `что это модель`, `почему человек не зверь`).
+     - Deductive & Transitive Reasoning (`если волк ест заяц то волк хищник`).
+     - Subtraction QA (exhaustive across 0..9).
+     - Division QA (exact integer division across 0..9).
+     - Addition & Multiplication QA.
+     - Taxonomy, Habitat & Food Chain QA.
+   - **Integrity:** 100% roundtrip fidelity verified.
+
+---
+
+### 15.5 Test Verification Suite (`tests/chinchilla_data_test.rs`)
+
+Unit & integration verification executed via `cargo test --test chinchilla_data_test --release`:
+- `test_chinchilla_vocab_properties`: PASS (65 tokens, all mandatory special, arithmetic, logical, and foundational tokens verified).
+- `test_chinchilla_model_param_parity`: PASS (exact 896 parameters, 20:1 Chinchilla ratio verified).
+- `test_pretrain_chinchilla_exact_tokens`: PASS (pretrain token length == 17920).
+- `test_instruct_chinchilla_token_length`: PASS (instruct token length in 1800..2500, actual: 1901).
+- `test_chinchilla_corpora_100_percent_roundtrip_fidelity`: PASS (100% roundtrip fidelity across all pretrain and instruct lines).
+
+**Total Project Regression:**
+- Full test suite (`cargo test --release`): **85 unit tests and 19 integration tests in 7 suites passed cleanly (0 failures, 0 compiler warnings)**.
+
+
 
 
 

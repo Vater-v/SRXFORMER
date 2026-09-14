@@ -206,6 +206,33 @@ impl TransformerConfig {
         }
     }
 
+    /// Strict parameter parity configuration for Chinchilla Sprint 1 (EXACTLY 896 parameters).
+    /// Tailored to Chinchilla 20:1 optimal compute-scaling law (17,920 pretrain tokens).
+    /// (Vocab = 65, d_model = 8, n_heads = 2, n_layers = 1, d_ff = 6, max_seq_len = 32,
+    /// RMSNorm, Relu, Sinusoidal, tie_word_embeddings = true, use_bias = false).
+    /// Parameter breakdown:
+    /// - Token Embeddings: 65 * 8 = 520
+    /// - Attention Projections (W_q, W_k, W_v, W_o): 4 * (8 * 8) = 256
+    /// - Norms (Pre-Attn, Pre-FFN, Final): 3 * 8 = 24
+    /// - FFN (W1 [6, 8] + W2 [8, 6]): 48 + 48 = 96
+    /// Total = 520 + 256 + 24 + 96 = EXACTLY 896 parameters (3,584 bytes -> 100% L1D Cache resident).
+    pub fn chinchilla() -> Self {
+        Self {
+            vocab_size: 65,
+            d_model: 8,
+            n_heads: 2,
+            n_layers: 1,
+            d_ff: 6,
+            max_seq_len: 32,
+            eps: 1e-5,
+            norm_type: NormType::RMSNorm,
+            activation: ActivationType::Relu,
+            pos_encoding: PosEncodingType::Sinusoidal,
+            tie_word_embeddings: true,
+            use_bias: false,
+        }
+    }
+
     /// Micro configuration (~3.5k parameters) with 2 layers and untied head.
     pub fn micro() -> Self {
         Self {
@@ -400,6 +427,14 @@ mod tests {
         assert_eq!(config.validate(), Ok(()));
         let count = config.param_count();
         assert_eq!(count, 896, "Lang v3 config must have exactly 896 parameters!");
+    }
+
+    #[test]
+    fn test_chinchilla_param_count() {
+        let config = TransformerConfig::chinchilla();
+        assert_eq!(config.validate(), Ok(()));
+        let count = config.param_count();
+        assert_eq!(count, 896, "Chinchilla config must have exactly 896 parameters!");
     }
 
     #[test]

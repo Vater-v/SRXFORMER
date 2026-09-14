@@ -28,6 +28,10 @@ path = "src/bin/spectral_analysis.rs"
 name = "corpus_v3_bench"
 path = "src/bin/corpus_v3_bench.rs"
 
+[[bin]]
+name = "prepare_chinchilla_data"
+path = "src/bin/prepare_chinchilla_data.rs"
+
 [profile.release]
 opt-level = 3
 lto = true
