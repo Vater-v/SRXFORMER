@@ -16,6 +16,10 @@ path = "src/main.rs"
 name = "generate_data"
 path = "src/bin/generate_data.rs"
 
+[[bin]]
+name = "corpus_v2_bench"
+path = "src/bin/corpus_v2_bench.rs"
+
 [profile.release]
 opt-level = 3
 lto = true

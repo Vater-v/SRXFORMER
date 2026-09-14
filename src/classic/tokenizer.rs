@@ -2,7 +2,7 @@
 //! Supports arithmetic tokens (0..5, +, -, =), Russian words (кот, пес, животное, друг, это, да, нет, кто),
 //! and control tokens (<pad>, <eos>, <user>, <bot>).
 
-/// Static vocabulary mapping of exactly 21 tokens.
+/// Static vocabulary mapping of exactly 21 tokens (v1).
 pub const VOCAB: [&str; 21] = [
     "<pad>",     // 0
     "<eos>",     // 1
@@ -27,6 +27,52 @@ pub const VOCAB: [&str; 21] = [
     "кто",       // 20
 ];
 
+/// Extended vocabulary mapping of 41 tokens (v2).
+/// Tokens 0..20 are 100% backward compatible with v1.
+pub const VOCAB_V2: [&str; 41] = [
+    "<pad>",     // 0
+    "<eos>",     // 1
+    "<user>",    // 2
+    "<bot>",     // 3
+    "0",         // 4
+    "1",         // 5
+    "2",         // 6
+    "3",         // 7
+    "4",         // 8
+    "5",         // 9
+    "+",         // 10
+    "-",         // 11
+    "=",         // 12
+    "кот",       // 13
+    "пес",       // 14
+    "животное",  // 15
+    "друг",      // 16
+    "это",       // 17
+    "да",        // 18
+    "нет",       // 19
+    "кто",       // 20
+    "6",         // 21
+    "7",         // 22
+    "8",         // 23
+    "9",         // 24
+    "*",         // 25
+    "волк",      // 26
+    "лиса",      // 27
+    "заяц",      // 28
+    "рыба",      // 29
+    "птица",     // 30
+    "зверь",     // 31
+    "хищник",    // 32
+    "человек",   // 33
+    "враг",      // 34
+    "где",       // 35
+    "что",       // 36
+    "река",      // 37
+    "небо",      // 38
+    "лес",       // 39
+    "дом",       // 40
+];
+
 pub const PAD_TOKEN_ID: usize = 0;
 pub const EOS_TOKEN_ID: usize = 1;
 pub const USER_TOKEN_ID: usize = 2;
@@ -39,13 +85,30 @@ pub struct Tokenizer {
 }
 
 impl Tokenizer {
-    /// Creates a new Tokenizer pre-populated with the standard 21-token vocabulary.
+    /// Creates a new Tokenizer pre-populated with the extended 41-token vocabulary (v2).
     pub fn new() -> Self {
+        Self::v2()
+    }
+
+    /// Creates a Tokenizer pre-populated with the legacy 21-token vocabulary (v1).
+    pub fn v1() -> Self {
         let vocab = VOCAB.iter().map(|&s| s.to_string()).collect();
         Self { vocab }
     }
 
-    /// Returns the total vocabulary size (21).
+    /// Creates a Tokenizer pre-populated with the extended 41-token vocabulary (v2).
+    pub fn v2() -> Self {
+        let vocab = VOCAB_V2.iter().map(|&s| s.to_string()).collect();
+        Self { vocab }
+    }
+
+    /// Creates a custom Tokenizer from an arbitrary vocabulary slice.
+    pub fn from_vocab(vocab_slice: &[&str]) -> Self {
+        let vocab = vocab_slice.iter().map(|&s| s.to_string()).collect();
+        Self { vocab }
+    }
+
+    /// Returns the total vocabulary size.
     #[inline]
     pub fn vocab_size(&self) -> usize {
         self.vocab.len()
@@ -100,7 +163,7 @@ impl Tokenizer {
                 }
             }
 
-            // Check for single character tokens (0..5, +, -, =)
+            // Check for single character tokens (0..9, +, -, =, *)
             let single_char_str = &text[i..i + c.len_utf8()];
             if let Some(id) = self.token_to_id(single_char_str) {
                 tokens.push(id);
@@ -108,14 +171,15 @@ impl Tokenizer {
                 continue;
             }
 
-            // Word tokens (Russian words: кот, пес, животное, друг, это, да, нет, кто)
+            // Word tokens (Russian words)
             let mut end_idx = i + c.len_utf8();
             chars.next();
             while let Some(&(next_i, next_c)) = chars.peek() {
                 if next_c.is_whitespace()
                     || next_c == '<'
                     || next_c == '>'
-                    || matches!(next_c, '0'..='5' | '+' | '-' | '=')
+                    || next_c == '?'
+                    || matches!(next_c, '0'..='9' | '+' | '-' | '=' | '*')
                 {
                     break;
                 }
@@ -155,7 +219,9 @@ mod tests {
     #[test]
     fn test_vocab_size() {
         let tok = Tokenizer::new();
-        assert_eq!(tok.vocab_size(), 21);
+        assert_eq!(tok.vocab_size(), 41);
+        let tok_v1 = Tokenizer::v1();
+        assert_eq!(tok_v1.vocab_size(), 21);
     }
 
     #[test]
@@ -195,5 +261,30 @@ mod tests {
         assert_eq!(encoded, vec![2, 8, 11, 5, 12, 3, 7, 1]);
         let decoded = tok.decode(&encoded);
         assert_eq!(decoded, original);
+    }
+
+    #[test]
+    fn test_roundtrip_v2_arithmetic_multiplication() {
+        let tok = Tokenizer::new();
+        let original = "<user> 2 * 3 = <bot> 6 <eos>";
+        let encoded = tok.encode(original);
+        assert_eq!(encoded, vec![2, 6, 25, 7, 12, 3, 21, 1]);
+        let decoded = tok.decode(&encoded);
+        assert_eq!(decoded, original);
+    }
+
+    #[test]
+    fn test_roundtrip_v2_spatial_and_taxonomy() {
+        let tok = Tokenizer::new();
+        let original = "<user> где волк <bot> лес <eos>";
+        let encoded = tok.encode(original);
+        assert_eq!(encoded, vec![2, 35, 26, 3, 39, 1]);
+        let decoded = tok.decode(&encoded);
+        assert_eq!(decoded, original);
+
+        let fact = "лиса это хищник <eos>";
+        let enc_fact = tok.encode(fact);
+        assert_eq!(enc_fact, vec![27, 17, 32, 1]);
+        assert_eq!(tok.decode(&enc_fact), fact);
     }
 }

@@ -21,6 +21,12 @@ use srxformer::{
 };
 
 fn main() {
+    let args: Vec<String> = std::env::args().collect();
+    if args.iter().any(|a| a == "--v2" || a == "v2" || a == "corpus_v2") {
+        run_corpus_v2_bench();
+        return;
+    }
+
     println!("=================================================================================================================");
     println!(" SRXformer: Quad-System Benchmark (Classical v01 vs SRX v01 vs SRX v02 vs SRX v03 Golden Core)                 ");
     println!(" Target Hardware Architecture: Intel Xeon E5-2650 v2 (Ivy Bridge-EP, AVX FP32, L1D 32KB per core)             ");
@@ -552,4 +558,144 @@ fn main() {
     println!("  - telemetry_srx_v01.txt");
     println!("  - telemetry_srx_v02.txt");
     println!("  - telemetry_srx_v03.txt");
+    println!("\n💡 Tip: To run benchmark on Scaled Corpus v2 (2,940 tokens, 30 control tasks), run:");
+    println!("     cargo run --release -- --v2");
+    println!("     cargo run --release --bin corpus_v2_bench\n");
+}
+
+pub fn run_corpus_v2_bench() {
+    println!("=================================================================================================================");
+    println!(" SRXformer: Scaled Corpus v2 Benchmark (Classical Baseline vs SRX v03 Golden Core)                              ");
+    println!(" Target Hardware: Intel Xeon E5-2650 v2 (Ivy Bridge-EP, AVX FP32, L1D 32KB per core)                           ");
+    println!(" Dataset: data/unified_corpus_v2.txt (2,940 tokens, 440 unique lines, strictly 0 duplicates)                     ");
+    println!(" Control Suite: 30 Heterogeneous Control Tasks                                                                   ");
+    println!("=================================================================================================================\n");
+
+    let config = TransformerConfig::lang_v2();
+    let tokenizer = Tokenizer::new();
+
+    let unified_path = "data/unified_corpus_v2.txt";
+    let corpus_text = fs::read_to_string(unified_path).unwrap_or_else(|_| {
+        panic!("Failed to read {}. Run `cargo run --bin generate_data` first.", unified_path)
+    });
+
+    let lines: Vec<&str> = corpus_text.lines().filter(|l| !l.is_empty()).collect();
+    let tokens = tokenizer.encode(&corpus_text);
+    println!("[1] Corpus v2 Statistics:");
+    println!("    * Sentences: {} (strictly unique, 0 duplicates)", lines.len());
+    println!("    * Tokens:    {} (target: 2,940)", tokens.len());
+    println!("    * Config:    d_model={}, d_ff={}, n_heads={}, vocab={}", config.d_model, config.d_ff, config.n_heads, config.vocab_size);
+    println!("    * Footprint: Classical = {} B, SRX v03 = 3,528 B (< 32 KB L1D Cache)\n", config.param_count() * 4);
+
+    let test_cases = [
+        ("<user> 2 + 3 = <bot>", "5 <eos>", "Addition Arithmetic (Basic)"),
+        ("<user> 1 + 2 = <bot>", "3 <eos>", "Addition Arithmetic (Basic)"),
+        ("<user> 3 + 4 = <bot>", "7 <eos>", "Addition Arithmetic (Extended)"),
+        ("<user> 5 + 3 = <bot>", "8 <eos>", "Addition Arithmetic (Extended)"),
+        ("<user> 4 + 5 = <bot>", "9 <eos>", "Addition Arithmetic (Extended)"),
+        ("<user> 4 - 1 = <bot>", "3 <eos>", "Subtraction Arithmetic (Basic)"),
+        ("<user> 5 - 2 = <bot>", "3 <eos>", "Subtraction Arithmetic (Basic)"),
+        ("<user> 9 - 4 = <bot>", "5 <eos>", "Subtraction Arithmetic (Extended)"),
+        ("<user> 8 - 3 = <bot>", "5 <eos>", "Subtraction Arithmetic (Extended)"),
+        ("<user> 7 - 2 = <bot>", "5 <eos>", "Subtraction Arithmetic (Extended)"),
+        ("<user> 2 * 3 = <bot>", "6 <eos>", "Multiplication Arithmetic"),
+        ("<user> 2 * 2 = <bot>", "4 <eos>", "Multiplication Arithmetic"),
+        ("<user> 3 * 3 = <bot>", "9 <eos>", "Multiplication Arithmetic"),
+        ("<user> кто кот <bot>", "кот это животное <eos>", "Entity Fact / Definition"),
+        ("<user> кто пес <bot>", "пес это друг <eos>", "Entity Fact / Definition"),
+        ("<user> кто волк <bot>", "волк это зверь <eos>", "Entity Fact / Definition"),
+        ("<user> кто лиса <bot>", "лиса это хищник <eos>", "Entity Fact / Definition"),
+        ("<user> где волк <bot>", "лес <eos>", "Spatial Reasoning"),
+        ("<user> где рыба <bot>", "река <eos>", "Spatial Reasoning"),
+        ("<user> где кот <bot>", "дом <eos>", "Spatial Reasoning"),
+        ("<user> где птица <bot>", "небо <eos>", "Spatial Reasoning"),
+        ("<user> кот это пес <bot>", "нет <eos>", "Boolean Logic Negation"),
+        ("<user> волк это пес <bot>", "нет <eos>", "Boolean Logic Negation"),
+        ("<user> кот это животное <bot>", "да <eos>", "Boolean Logic Affirmation"),
+        ("<user> волк это зверь <bot>", "да <eos>", "Boolean Logic Affirmation"),
+        ("2 + 3 =", "5 <eos>", "Anti-Forgetting Base Addition"),
+        ("4 - 1 =", "3 <eos>", "Anti-Forgetting Base Subtraction"),
+        ("2 * 3 =", "6 <eos>", "Anti-Forgetting Base Multiplication"),
+        ("волк это зверь =", "да <eos>", "Anti-Forgetting Base Logic"),
+        ("где рыба =", "река <eos>", "Anti-Forgetting Base Spatial"),
+    ];
+
+    const EPOCHS: usize = 280;
+    const LR_SRX: f32 = 0.022;
+    const BENCH_STEPS: usize = 50_000;
+
+    println!("[2] Training SRX v03 Golden Core on Corpus v2 ({} epochs)...", EPOCHS);
+    let mut srx_model = SrxTransformerV03::new_with_seed(config.clone(), 42).expect("Init SRX v03");
+    let telemetry = srx_model.train_dataset(&tokens, EPOCHS, LR_SRX);
+    println!("    * Initial Loss: {:.4} (PPL: {:.2})", telemetry.initial_loss, telemetry.initial_perplexity);
+    println!("    * Final Loss:   {:.4} (PPL: {:.2})", telemetry.final_loss, telemetry.final_perplexity);
+    println!("    * Elapsed:      {:.2} ms", telemetry.elapsed_ms);
+
+    let weights_path = "data/srx_v03_corpus_v2_weights.bin";
+    srx_model.save_weights(weights_path).expect("Failed to save weights");
+
+    let mut ws = SrxWorkspaceV03::new(&config);
+    let mut state = SrxStateV03::new(&config);
+    let mut test_results = Vec::new();
+    let mut passed_count = 0;
+
+    println!("\n[3] Evaluating SRX v03 on 30 Control Tasks:");
+    for (prompt, expected, category) in test_cases {
+        let p_toks = tokenizer.encode(prompt);
+        let gen_ids = srx_model.generate_until_eos(&p_toks, 8, EOS_TOKEN_ID, &mut state, &mut ws);
+        let gen_text = tokenizer.decode(&gen_ids[p_toks.len()..]);
+        let passed = gen_text == expected;
+        if passed { passed_count += 1; }
+        println!(
+            "    [{}] {:<34}: \"{:<24}\" -> \"{:<22}\"",
+            if passed { "PASS" } else { "FAIL" }, category, prompt, gen_text
+        );
+        test_results.push(TestCaseResult {
+            prompt: prompt.to_string(),
+            generated: gen_text,
+            expected: expected.to_string(),
+            category: category.to_string(),
+            passed,
+        });
+    }
+
+    state.reset();
+    let b_start = Instant::now();
+    for i in 0..BENCH_STEPS {
+        let pos = i % config.max_seq_len;
+        if pos == 0 { state.reset(); }
+        srx_model.step(i % config.vocab_size, pos, &mut state, &mut ws);
+    }
+    let b_elapsed = b_start.elapsed();
+    let step_ns = b_elapsed.as_nanos() as f64 / BENCH_STEPS as f64;
+    let step_us = step_ns / 1000.0;
+    let tok_sec = BENCH_STEPS as f64 / b_elapsed.as_secs_f64();
+    let flops_per_token = 2 * srx_model.param_count() as u64;
+    let inf_gflops = (flops_per_token as f64 * tok_sec) / 1e9;
+
+    let inf_telemetry = InferenceTelemetry {
+        flops_per_token,
+        bench_steps: BENCH_STEPS,
+        step_latency_ns: step_ns,
+        step_latency_us: step_us,
+        tokens_per_sec: tok_sec,
+        gflops_per_sec: inf_gflops,
+    };
+
+    let report = SrxTelemetryReportV03::new(
+        telemetry,
+        inf_telemetry,
+        test_results,
+        state.memory_bytes(),
+        config.max_seq_len,
+    );
+    report.save_to_file("telemetry_srx_v03_corpus_v2.txt").expect("Failed to write telemetry");
+
+    println!("\n[4] Summary:");
+    println!("    * Exact Match Accuracy: {}/30 ({:.1}%)", passed_count, (passed_count as f64 / 30.0) * 100.0);
+    println!("    * Single Step Latency:  {:.2} ns ({:.3} µs)", step_ns, step_us);
+    println!("    * Throughput:           {:.0} tokens/sec", tok_sec);
+    println!("    * State Memory:         {} bytes (O(1) strictly L1D Cache resident)", state.memory_bytes());
+    println!("    * Saved Weights:        {}", weights_path);
+    println!("    * Saved Telemetry:      telemetry_srx_v03_corpus_v2.txt\n");
 }

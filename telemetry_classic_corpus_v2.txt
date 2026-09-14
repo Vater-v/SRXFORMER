@@ -1,0 +1,63 @@
+================================================================================
+ SRXFORMER: CLASSICAL TRANSFORMER (BASELINE) COMPUTE / LATENCY / QUALITY TELEMETRY REPORT
+ Target Architecture: Intel Xeon E5-2650 v2 (Ivy Bridge-EP)                     
+ Model Parameters:    864 (100% L1D Cache Resident, 32 KB per core)             
+================================================================================
+
+[1] ВЛОЖЕННЫЙ COMPUTE НА ОБУЧЕНИЕ (TRAINING COMPUTE):
+    * Вложили compute:          4267468800 FLOPs (4267.47 MFLOPs / 4.2675 GFLOPs)
+    * Время обучения:           5310.56 ms (5.311 s)
+    * Формула FLOPs:            6 * N_params * tokens_per_epoch * epochs
+                                = 6 * 864 * 2940 * 280
+    * Эффективная скорость:     803.58 MFLOP/s (0.8036 GFLOP/s)
+    * Начальный Loss:           4.3242 (Перплексия: 75.51)
+    * Финальный Loss:           0.8736 (Перплексия: 2.40)
+    * Всего шагов (Steps):      123200 gradient updates
+
+[2] COMPUTE И ЛАТЕНТНОСТЬ НА ИНФЕРЕНСЕ (INFERENCE COMPUTE & LATENCY):
+    * Ответ за compute:         1728 FLOPs на токен (~ 2 * N_params)
+    * Время генерации токена:   2099.3 ns (2.099 µs)
+    * Пропускная способность:   476350 токенов/сек (0.48M токенов/сек)
+    * Вычислительная скорость:  0.8231 GFLOP/s
+    * Число бенчмарк шагов:     50000 tokens decoded
+
+[3] КАЧЕСТВО МОДЕЛИ (QUALITY EVALUATION - EXACT MATCH):
+    * Точность (Exact Match):   63.3% (19/30 тестов пройдено)
+    --------------------------------------------------------------------------------------------------------------------
+    | Категория                | Статус | Промпт                    | Сгенерировано        | Ожидалось            |
+    --------------------------------------------------------------------------------------------------------------------
+    | Addition Arithmetic (Basic) | PASS   | <user> 2 + 3 = <bot>      | 5 <eos>              | 5 <eos>              |
+    | Addition Arithmetic (Basic) | FAIL   | <user> 1 + 2 = <bot>      | 2 <eos>              | 3 <eos>              |
+    | Addition Arithmetic (Extended) | PASS   | <user> 3 + 4 = <bot>      | 7 <eos>              | 7 <eos>              |
+    | Addition Arithmetic (Extended) | PASS   | <user> 5 + 3 = <bot>      | 8 <eos>              | 8 <eos>              |
+    | Addition Arithmetic (Extended) | PASS   | <user> 4 + 5 = <bot>      | 9 <eos>              | 9 <eos>              |
+    | Subtraction Arithmetic (Basic) | FAIL   | <user> 4 - 1 = <bot>      | 0 <eos>              | 3 <eos>              |
+    | Subtraction Arithmetic (Basic) | FAIL   | <user> 5 - 2 = <bot>      | 4 <eos>              | 3 <eos>              |
+    | Subtraction Arithmetic (Extended) | FAIL   | <user> 9 - 4 = <bot>      | 1 <eos>              | 5 <eos>              |
+    | Subtraction Arithmetic (Extended) | FAIL   | <user> 8 - 3 = <bot>      | 4 <eos>              | 5 <eos>              |
+    | Subtraction Arithmetic (Extended) | FAIL   | <user> 7 - 2 = <bot>      | 4 <eos>              | 5 <eos>              |
+    | Multiplication Arithmetic | FAIL   | <user> 2 * 3 = <bot>      | 5 <eos>              | 6 <eos>              |
+    | Multiplication Arithmetic | PASS   | <user> 2 * 2 = <bot>      | 4 <eos>              | 4 <eos>              |
+    | Multiplication Arithmetic | FAIL   | <user> 3 * 3 = <bot>      | 6 <eos>              | 9 <eos>              |
+    | Entity Fact / Definition | PASS   | <user> кто кот <bot>      | кот это животное <eos> | кот это животное <eos> |
+    | Entity Fact / Definition | PASS   | <user> кто пес <bot>      | пес это друг <eos>   | пес это друг <eos>   |
+    | Entity Fact / Definition | PASS   | <user> кто волк <bot>     | волк это зверь <eos> | волк это зверь <eos> |
+    | Entity Fact / Definition | FAIL   | <user> кто лиса <bot>     | волк это хищник <eos> | лиса это хищник <eos> |
+    | Spatial Reasoning        | PASS   | <user> где волк <bot>     | лес <eos>            | лес <eos>            |
+    | Spatial Reasoning        | PASS   | <user> где рыба <bot>     | река <eos>           | река <eos>           |
+    | Spatial Reasoning        | PASS   | <user> где кот <bot>      | дом <eos>            | дом <eos>            |
+    | Spatial Reasoning        | PASS   | <user> где птица <bot>    | небо <eos>           | небо <eos>           |
+    | Boolean Logic Negation   | PASS   | <user> кот это пес <bot>  | нет <eos>            | нет <eos>            |
+    | Boolean Logic Negation   | PASS   | <user> волк это пес <bot> | нет <eos>            | нет <eos>            |
+    | Boolean Logic Affirmation | PASS   | <user> кот это животное <bot> | да <eos>             | да <eos>             |
+    | Boolean Logic Affirmation | PASS   | <user> волк это зверь <bot> | да <eos>             | да <eos>             |
+    | Anti-Forgetting Base Addition | PASS   | 2 + 3 =                   | 5 <eos>              | 5 <eos>              |
+    | Anti-Forgetting Base Subtraction | FAIL   | 4 - 1 =                   | 2 <eos>              | 3 <eos>              |
+    | Anti-Forgetting Base Multiplication | FAIL   | 2 * 3 =                   | 5 <eos>              | 6 <eos>              |
+    | Anti-Forgetting Base Logic | PASS   | волк это зверь =          | да <eos>             | да <eos>             |
+    | Anti-Forgetting Base Spatial | PASS   | где рыба =                | река <eos>           | река <eos>           |
+    --------------------------------------------------------------------------------------------------------------------
+
+================================================================================
+ SRXFORMER TELEMETRY VERIFICATION: ALL METRICS RECORDED SUCCESSFULLY!           
+================================================================================

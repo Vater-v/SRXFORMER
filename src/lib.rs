@@ -17,7 +17,7 @@ pub use classic::{
     AdamW, FastRng, FeedForward, InferenceTelemetry, InferenceWorkspace, KvCache,
     MultiHeadAttention, NormType, PosEncodingType, TestCaseResult, TelemetryReport, Tokenizer,
     TrainMetrics, TrainTelemetry, TrainWorkspace, Transformer, TransformerConfig, TransformerGrad,
-    TransformerLayer, VOCAB, BOT_TOKEN_ID, EOS_TOKEN_ID, PAD_TOKEN_ID, USER_TOKEN_ID,
+    TransformerLayer, VOCAB, VOCAB_V2, BOT_TOKEN_ID, EOS_TOKEN_ID, PAD_TOKEN_ID, USER_TOKEN_ID,
 };
 
 // Re-export SRX v01 (Frozen Reference)

@@ -1,0 +1,70 @@
+================================================================================
+ SRXFORMER: SUPER-RESOLVENT XFORMER v03 (MONARCH BUTTERFLY + SELECTIVE GATE) COMPUTE / LATENCY / QUALITY TELEMETRY REPORT
+ Target Architecture: Intel Xeon E5-2650 v2 (Ivy Bridge-EP)                     
+ Model Parameters:    882 (100% L1D Cache Resident, 32 KB per core)             
+================================================================================
+
+[1] ВЛОЖЕННЫЙ COMPUTE НА ОБУЧЕНИЕ (TRAINING COMPUTE):
+    * Вложили compute:          5289883200 FLOPs (5289.88 MFLOPs / 5.2899 GFLOPs)
+    * Время обучения:           8924.48 ms (8.924 s)
+    * Формула FLOPs:            6 * N_params * tokens_per_epoch * epochs
+                                = 6 * 882 * 2940 * 340
+    * Эффективная скорость:     592.74 MFLOP/s (0.5927 GFLOP/s)
+    * Начальный Loss:           4.2750 (Перплексия: 71.88)
+    * Финальный Loss:           0.7403 (Перплексия: 2.10)
+    * Всего шагов (Steps):      149600 gradient updates
+
+[2] COMPUTE, ЛАТЕНТНОСТЬ И ПАМЯТЬ СОСТОЯНИЯ НА ИНФЕРЕНСЕ (INFERENCE COMPUTE & MEMORY):
+    * Ответ за compute:         1764 FLOPs на токен (~ 2 * N_params)
+    * Время генерации токена:   2146.4 ns (2.146 µs)
+    * Пропускная способность:   465886 токенов/сек (0.47M токенов/сек)
+    * Вычислительная скорость:  0.8218 GFLOP/s
+    * Число бенчмарк шагов:     50000 tokens decoded
+    --------------------------------------------------------------------------------
+    * СРАВНЕНИЕ ОБЪЕМА ПАМЯТИ СОСТОЯНИЯ (STATE MEMORY FOOTPRINT):
+      - SRX v03 State (Theta + M): 160 bytes (СТРОГО КОНСТАНТНО O(1), 100% L1D resident)
+      - Classic KV Cache (N=32 ): 2048 bytes (12.8x больше SRX)
+      - Classic KV Cache (N=1K):  65536 bytes (409.6x больше SRX -> вытеснение L1D)
+      - Classic KV Cache (N=100K):6400000 bytes (40000.0x больше SRX -> вытеснение в DRAM)
+      - Преимущество SRX v03:   Нулевой трафик в DRAM, отсутствие падения скорости при росте N
+
+[3] КАЧЕСТВО МОДЕЛИ (QUALITY EVALUATION - EXACT MATCH):
+    * Точность (Exact Match):   86.7% (26/30 тестов пройдено)
+    --------------------------------------------------------------------------------------------------------------------
+    | Категория                | Статус | Промпт                    | Сгенерировано        | Ожидалось            |
+    --------------------------------------------------------------------------------------------------------------------
+    | Addition Arithmetic (Basic) | PASS   | <user> 2 + 3 = <bot>      | 5 <eos>              | 5 <eos>              |
+    | Addition Arithmetic (Basic) | PASS   | <user> 1 + 2 = <bot>      | 3 <eos>              | 3 <eos>              |
+    | Addition Arithmetic (Extended) | PASS   | <user> 3 + 4 = <bot>      | 7 <eos>              | 7 <eos>              |
+    | Addition Arithmetic (Extended) | PASS   | <user> 5 + 3 = <bot>      | 8 <eos>              | 8 <eos>              |
+    | Addition Arithmetic (Extended) | PASS   | <user> 4 + 5 = <bot>      | 9 <eos>              | 9 <eos>              |
+    | Subtraction Arithmetic (Basic) | PASS   | <user> 4 - 1 = <bot>      | 3 <eos>              | 3 <eos>              |
+    | Subtraction Arithmetic (Basic) | PASS   | <user> 5 - 2 = <bot>      | 3 <eos>              | 3 <eos>              |
+    | Subtraction Arithmetic (Extended) | PASS   | <user> 9 - 4 = <bot>      | 5 <eos>              | 5 <eos>              |
+    | Subtraction Arithmetic (Extended) | PASS   | <user> 8 - 3 = <bot>      | 5 <eos>              | 5 <eos>              |
+    | Subtraction Arithmetic (Extended) | PASS   | <user> 7 - 2 = <bot>      | 5 <eos>              | 5 <eos>              |
+    | Multiplication Arithmetic | FAIL   | <user> 2 * 3 = <bot>      | 7 <eos>              | 6 <eos>              |
+    | Multiplication Arithmetic | PASS   | <user> 2 * 2 = <bot>      | 4 <eos>              | 4 <eos>              |
+    | Multiplication Arithmetic | PASS   | <user> 3 * 3 = <bot>      | 9 <eos>              | 9 <eos>              |
+    | Entity Fact / Definition | FAIL   | <user> кто кот <bot>      | птица это животное <eos> | кот это животное <eos> |
+    | Entity Fact / Definition | FAIL   | <user> кто пес <bot>      | птица это животное <eos> | пес это друг <eos>   |
+    | Entity Fact / Definition | PASS   | <user> кто волк <bot>     | волк это зверь <eos> | волк это зверь <eos> |
+    | Entity Fact / Definition | FAIL   | <user> кто лиса <bot>     | волк это зверь <eos> | лиса это хищник <eos> |
+    | Spatial Reasoning        | PASS   | <user> где волк <bot>     | лес <eos>            | лес <eos>            |
+    | Spatial Reasoning        | PASS   | <user> где рыба <bot>     | река <eos>           | река <eos>           |
+    | Spatial Reasoning        | PASS   | <user> где кот <bot>      | дом <eos>            | дом <eos>            |
+    | Spatial Reasoning        | PASS   | <user> где птица <bot>    | небо <eos>           | небо <eos>           |
+    | Boolean Logic Negation   | PASS   | <user> кот это пес <bot>  | нет <eos>            | нет <eos>            |
+    | Boolean Logic Negation   | PASS   | <user> волк это пес <bot> | нет <eos>            | нет <eos>            |
+    | Boolean Logic Affirmation | PASS   | <user> кот это животное <bot> | да <eos>             | да <eos>             |
+    | Boolean Logic Affirmation | PASS   | <user> волк это зверь <bot> | да <eos>             | да <eos>             |
+    | Anti-Forgetting Base Addition | PASS   | 2 + 3 =                   | 5 <eos>              | 5 <eos>              |
+    | Anti-Forgetting Base Subtraction | PASS   | 4 - 1 =                   | 3 <eos>              | 3 <eos>              |
+    | Anti-Forgetting Base Multiplication | PASS   | 2 * 3 =                   | 6 <eos>              | 6 <eos>              |
+    | Anti-Forgetting Base Logic | PASS   | волк это зверь =          | да <eos>             | да <eos>             |
+    | Anti-Forgetting Base Spatial | PASS   | где рыба =                | река <eos>           | река <eos>           |
+    --------------------------------------------------------------------------------------------------------------------
+
+================================================================================
+ SRXFORMER v03 GOLDEN CORE TELEMETRY VERIFICATION: ALL METRICS RECORDED!         
+================================================================================

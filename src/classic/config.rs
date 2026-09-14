@@ -99,6 +99,32 @@ impl TransformerConfig {
         }
     }
 
+    /// Language configuration v2 tailored to 41 vocabulary tokens (unified corpus v2).
+    /// (Vocab = 41, d_model = 8, n_heads = 2, n_layers = 1, d_ff = 16, max_seq_len = 32,
+    /// RMSNorm, Relu, Sinusoidal, tie_word_embeddings = true, use_bias = false).
+    /// Parameter breakdown for Classical Transformer:
+    /// - Token Embeddings: 41 * 8 = 328
+    /// - Attention Projections: 4 * (8 * 8) = 256
+    /// - Norms (Pre-Attn, Pre-FFN, Final): 3 * 8 = 24
+    /// - FFN (W1 [16, 8] + W2 [8, 16]): 128 + 128 = 256
+    /// Total = 864 parameters (3,456 bytes -> strictly L1D Cache resident < 32 KB).
+    pub fn lang_v2() -> Self {
+        Self {
+            vocab_size: 41,
+            d_model: 8,
+            n_heads: 2,
+            n_layers: 1,
+            d_ff: 16,
+            max_seq_len: 32,
+            eps: 1e-5,
+            norm_type: NormType::RMSNorm,
+            activation: ActivationType::Relu,
+            pos_encoding: PosEncodingType::Sinusoidal,
+            tie_word_embeddings: true,
+            use_bias: false,
+        }
+    }
+
     /// Micro configuration (~3.5k parameters) with 2 layers and untied head.
     pub fn micro() -> Self {
         Self {
@@ -269,6 +295,14 @@ mod tests {
         assert_eq!(config.validate(), Ok(()));
         let count = config.param_count();
         assert_eq!(count, 512, "Lang 512 config must have exactly 512 parameters!");
+    }
+
+    #[test]
+    fn test_lang_v2_param_count() {
+        let config = TransformerConfig::lang_v2();
+        assert_eq!(config.validate(), Ok(()));
+        let count = config.param_count();
+        assert_eq!(count, 864, "Lang v2 config must have exactly 864 parameters!");
     }
 
     #[test]
