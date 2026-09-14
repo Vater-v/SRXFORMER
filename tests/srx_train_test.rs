@@ -89,7 +89,7 @@ fn test_srx_unified_corpus_training_and_telemetry() {
     );
 
     // Save weights
-    let weight_path = "data/srx_model_weights.bin";
+    let weight_path = "data/srx_v02_model_weights.bin";
     model.save_weights(weight_path).expect("Failed to save SRX weights");
 
     // Verify weights roundtrip
@@ -176,10 +176,10 @@ fn test_srx_unified_corpus_training_and_telemetry() {
         config.max_seq_len,
     );
 
-    let report_file = "telemetry_srx.txt";
-    report.save_to_file(report_file).expect("Failed to write telemetry_srx.txt");
+    let report_file = "telemetry_srx_v02.txt";
+    report.save_to_file(report_file).expect("Failed to write telemetry_srx_v02.txt");
 
-    let read_back = fs::read_to_string(report_file).expect("Failed to read telemetry_srx.txt");
-    assert!(read_back.contains("SRXFORMER: SUPER-RESOLVENT XFORMER (INNOVATION) COMPUTE / LATENCY / QUALITY TELEMETRY REPORT"));
+    let read_back = fs::read_to_string(report_file).expect("Failed to read telemetry_srx_v02.txt");
+    assert!(read_back.contains("SRXFORMER: SUPER-RESOLVENT XFORMER v02 COMPUTE / LATENCY / QUALITY TELEMETRY REPORT"));
     assert!(read_back.contains("SRX State (Theta + M):  152 bytes"));
 }

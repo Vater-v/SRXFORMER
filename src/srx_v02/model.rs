@@ -563,13 +563,16 @@ impl SrxTransformer {
         Ok(())
     }
 
-    /// Saves SRX model weights and configuration metadata to a binary file (magic SRXX v1).
+    /// Default binary weights path for SRX v02 model.
+    pub const DEFAULT_WEIGHTS_PATH: &'static str = "data/srx_v02_model_weights.bin";
+
+    /// Saves SRX model weights and configuration metadata to a binary file (magic SRX2 v2).
     pub fn save_weights<P: AsRef<Path>>(&self, path: P) -> Result<(), io::Error> {
         let mut bytes = Vec::with_capacity(64 + self.param_count() * 4);
-        // 1. Magic bytes: SRXX
-        bytes.extend_from_slice(b"SRXX");
-        // 2. Version
-        bytes.extend_from_slice(&1u32.to_le_bytes());
+        // 1. Magic bytes: SRX2
+        bytes.extend_from_slice(b"SRX2");
+        // 2. Version: 2
+        bytes.extend_from_slice(&2u32.to_le_bytes());
         // 3. Config fields
         bytes.extend_from_slice(&(self.config.vocab_size as u32).to_le_bytes());
         bytes.extend_from_slice(&(self.config.d_model as u32).to_le_bytes());
@@ -614,7 +617,7 @@ impl SrxTransformer {
         fs::write(path, bytes)
     }
 
-    /// Loads and validates weights from a binary file (magic SRXX v1) into this model instance.
+    /// Loads and validates weights from a binary file (magic SRX2 v2) into this model instance.
     pub fn load_weights<P: AsRef<Path>>(&mut self, path: P) -> Result<(), io::Error> {
         let raw = fs::read(path)?;
         let (cfg, weights) = parse_srx_weights_file(&raw)?;
@@ -667,11 +670,11 @@ fn parse_srx_weights_file(raw: &[u8]) -> Result<(TransformerConfig, Vec<f32>), i
     if raw.len() < 64 {
         return Err(io::Error::new(io::ErrorKind::InvalidData, "File too small (< 64 bytes)"));
     }
-    if &raw[0..4] != b"SRXX" {
-        return Err(io::Error::new(io::ErrorKind::InvalidData, "Invalid SRXX magic bytes"));
+    if &raw[0..4] != b"SRX2" {
+        return Err(io::Error::new(io::ErrorKind::InvalidData, "Invalid SRX2 magic bytes"));
     }
     let version = u32::from_le_bytes(raw[4..8].try_into().unwrap());
-    if version != 1 {
+    if version != 2 {
         return Err(io::Error::new(io::ErrorKind::InvalidData, format!("Unsupported version: {}", version)));
     }
 
@@ -786,7 +789,7 @@ mod tests {
         let config = TransformerConfig::lang_512();
         let model = SrxTransformer::new_with_seed(config.clone(), 999).unwrap();
 
-        let path = "target/test_srx_weights_roundtrip.bin";
+        let path = "target/test_srx_v02_weights_roundtrip.bin";
         model.save_weights(path).unwrap();
 
         let loaded = SrxTransformer::load_from_file(path).unwrap();

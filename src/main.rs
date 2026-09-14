@@ -2,18 +2,27 @@ use std::fs;
 use std::time::Instant;
 
 use srxformer::{
-    InferenceTelemetry, InferenceWorkspace, KvCache, SrxState, SrxTelemetryReport, SrxTransformer,
-    SrxWorkspace, TestCaseResult, TelemetryReport, Tokenizer, Transformer, TransformerConfig,
-    EOS_TOKEN_ID,
+    classic::{
+        InferenceTelemetry, InferenceWorkspace, KvCache, TestCaseResult, TelemetryReport,
+        Tokenizer, Transformer, TransformerConfig, EOS_TOKEN_ID,
+    },
+    srx_v01::{
+        SrxState as SrxStateV01, SrxTelemetryReport as SrxTelemetryReportV01,
+        SrxTransformer as SrxTransformerV01, SrxWorkspace as SrxWorkspaceV01,
+    },
+    srx_v02::{
+        SrxState as SrxStateV02, SrxTelemetryReport as SrxTelemetryReportV02,
+        SrxTransformer as SrxTransformerV02, SrxWorkspace as SrxWorkspaceV02,
+    },
 };
 
 fn main() {
-    println!("================================================================================");
-    println!(" SRXformer: Pure Rust Classical Baseline vs SRX Innovation Dual-Engine Benchmark");
-    println!(" Target Hardware Architecture: Intel Xeon E5-2650 v2 (Ivy Bridge-EP)");
-    println!(" Features: Zero-Dep std-only, AVX FP32, L1D Resident (32KB), Analytical Backprop");
-    println!(" Unified Non-Duplicate Corpus & Compute/Latency/Quality Telemetry Accounting   ");
-    println!("================================================================================\n");
+    println!("========================================================================================");
+    println!(" SRXformer: Tri-System Comparative Benchmark (Classical v01 vs SRX v01 vs SRX v02)");
+    println!(" Target Hardware Architecture: Intel Xeon E5-2650 v2 (Ivy Bridge-EP, AVX FP32, L1D 32KB)");
+    println!(" Mathematical Innovation: Unitary Givens, Post-MUSIC RMSNorm, Gain Clipping, Taylor AVX");
+    println!(" Strict Parameter Parity: Exactly 512 parameters across all three evaluated systems     ");
+    println!("========================================================================================\n");
 
     // -------------------------------------------------------------------------
     // 1. CONFIGURATION & EXACT 512-PARAMETER ARCHITECTURE
@@ -21,7 +30,7 @@ fn main() {
     let config = TransformerConfig::lang_512();
     let tokenizer = Tokenizer::new();
 
-    println!("[1] Dual Model Architecture & Exact Parameter Derivation (lang_512):");
+    println!("[1] Tri-Model Architecture & Exact Parameter Derivation (lang_512):");
     println!("    * Vocab Size (V):    {} tokens", config.vocab_size);
     println!("    * Hidden Dim (d):     {}", config.d_model);
     println!("    * Attention Heads:    {} (head_dim = {})", config.n_heads, config.head_dim());
@@ -33,7 +42,7 @@ fn main() {
     println!("    * Positional Enc:     {:?} (0 params)", config.pos_encoding);
     println!("    * Tied LM Head:       {}", config.tie_word_embeddings);
     println!("    ----------------------------------------------------------------");
-    println!("    * 1:1 Parity Parameter Breakdown (Both Classical & SRX):");
+    println!("    * 1:1 Bitwise Parameter Breakdown (Classical, SRX v01, SRX v02):");
     println!("      - Token Embeddings: 21 * 8                = 168");
     println!("      - Attention Projections (W_q, W_k, W_v, W_o): 4 * (8 * 8) = 256");
     println!("      - Pre-Attn RMSNorm Gamma:                 =   8");
@@ -42,7 +51,7 @@ fn main() {
     println!("      - Final RMSNorm Gamma:                    =   8");
     println!("      - LM Head (Tied to Embeddings):           =   0");
     println!("      ================================================");
-    println!("      GRAND TOTAL:                              = 512 parameters (EXACT BITWISE PARITY)");
+    println!("      GRAND TOTAL:                              = 512 parameters (EXACT PARITY)");
     let weight_bytes = config.param_count() * std::mem::size_of::<f32>();
     println!(
         "    * Total Model Weight Size: {} bytes ({:.2} KB) -> 100% L1D Cache Resident (32 KB)",
@@ -95,10 +104,10 @@ fn main() {
     ];
 
     // =========================================================================
-    // 3. CLASSICAL TRANSFORMER (BASELINE) EXECUTION
+    // 3. CLASSICAL TRANSFORMER (BASELINE)
     // =========================================================================
     println!("================================================================================");
-    println!(" [3] RUNNING CLASSICAL TRANSFORMER (BASELINE)");
+    println!(" [3] RUNNING CLASSICAL TRANSFORMER v01 (BASELINE)");
     println!("================================================================================");
     let mut classic_model = Transformer::new_with_seed(config.clone(), 100)
         .expect("Failed to initialize Transformer");
@@ -109,7 +118,6 @@ fn main() {
     println!("      - Final Loss:   {:.4} (PPL: {:.2})", classic_train_telemetry.final_loss, classic_train_telemetry.final_perplexity);
     println!("      - Elapsed Time: {:.2} ms", classic_train_telemetry.elapsed_ms);
 
-    // Save weights
     let classic_weights_path = "data/model_weights.bin";
     classic_model
         .save_weights(classic_weights_path)
@@ -117,7 +125,6 @@ fn main() {
     let loaded_classic = Transformer::load_from_file(classic_weights_path)
         .expect("Failed to load classical model");
 
-    // Quality Evaluation
     let mut classic_ws = InferenceWorkspace::new(&config);
     let mut kv = KvCache::new(&config);
     let mut classic_test_results = Vec::new();
@@ -141,7 +148,6 @@ fn main() {
         });
     }
 
-    // Hardware Latency Benchmark
     kv.reset();
     let b_start = Instant::now();
     for i in 0..BENCH_STEPS {
@@ -167,49 +173,53 @@ fn main() {
         gflops_per_sec: classic_inf_gflops,
     };
 
-    let classic_report = TelemetryReport::new(classic_train_telemetry.clone(), classic_inf_telemetry.clone(), classic_test_results.clone());
-    classic_report.save_to_file("telemetry_classic.txt").expect("Failed to write telemetry_classic.txt");
-    println!("    * Classical report saved to: telemetry_classic.txt\n");
+    let classic_report = TelemetryReport::new(
+        classic_train_telemetry.clone(),
+        classic_inf_telemetry.clone(),
+        classic_test_results.clone(),
+    );
+    classic_report
+        .save_to_file("telemetry_classic_v01.txt")
+        .expect("Failed to write telemetry_classic_v01.txt");
+    println!("    * Classical report saved to: telemetry_classic_v01.txt\n");
 
     // =========================================================================
-    // 4. SRX TRANSFORMER (INNOVATION) EXECUTION
+    // 4. SRXFORMER v01 (FROZEN REFERENCE)
     // =========================================================================
     println!("================================================================================");
-    println!(" [4] RUNNING SRXFORMER (SUPER-RESOLVENT XFORMER INNOVATION)");
+    println!(" [4] RUNNING SRXFORMER v01 (FROZEN REFERENCE ARCHITECTURE)");
     println!("================================================================================");
-    let mut srx_model = SrxTransformer::new_with_seed(config.clone(), 100)
-        .expect("Failed to initialize SrxTransformer");
+    let mut srx_v01_model = SrxTransformerV01::new_with_seed(config.clone(), 100)
+        .expect("Failed to initialize SrxTransformerV01");
 
-    println!("    * Training SRXformer (Unitary Givens + MUSIC Subspace) for {} epochs...", EPOCHS);
-    let srx_train_telemetry = srx_model.train_dataset(&tokens, EPOCHS, LR);
-    println!("      - Initial Loss: {:.4} (PPL: {:.2})", srx_train_telemetry.initial_loss, srx_train_telemetry.initial_perplexity);
-    println!("      - Final Loss:   {:.4} (PPL: {:.2})", srx_train_telemetry.final_loss, srx_train_telemetry.final_perplexity);
-    println!("      - Elapsed Time: {:.2} ms", srx_train_telemetry.elapsed_ms);
+    println!("    * Training SRXformer v01 (Unitary Givens + Unclamped MUSIC) for {} epochs...", EPOCHS);
+    let srx_v01_train_telemetry = srx_v01_model.train_dataset(&tokens, EPOCHS, LR);
+    println!("      - Initial Loss: {:.4} (PPL: {:.2})", srx_v01_train_telemetry.initial_loss, srx_v01_train_telemetry.initial_perplexity);
+    println!("      - Final Loss:   {:.4} (PPL: {:.2})", srx_v01_train_telemetry.final_loss, srx_v01_train_telemetry.final_perplexity);
+    println!("      - Elapsed Time: {:.2} ms", srx_v01_train_telemetry.elapsed_ms);
 
-    // Save weights
-    let srx_weights_path = "data/srx_model_weights.bin";
-    srx_model
-        .save_weights(srx_weights_path)
-        .expect("Failed to save SRX model weights");
-    let loaded_srx = SrxTransformer::load_from_file(srx_weights_path)
-        .expect("Failed to load SRX model");
+    let srx_v01_weights_path = "data/srx_v01_model_weights.bin";
+    srx_v01_model
+        .save_weights(srx_v01_weights_path)
+        .expect("Failed to save SRX v01 weights");
+    let loaded_srx_v01 = SrxTransformerV01::load_from_file(srx_v01_weights_path)
+        .expect("Failed to load SRX v01 model");
 
-    // Quality Evaluation
-    let mut srx_ws = SrxWorkspace::new(&config);
-    let mut srx_state = SrxState::new(&config);
-    let mut srx_test_results = Vec::new();
+    let mut srx_v01_ws = SrxWorkspaceV01::new(&config);
+    let mut srx_v01_state = SrxStateV01::new(&config);
+    let mut srx_v01_test_results = Vec::new();
 
     println!("    * Evaluating Quality (10 control tasks):");
     for (prompt, expected, category) in test_cases {
         let p_toks = tokenizer.encode(prompt);
-        let gen_ids = loaded_srx.generate_until_eos(&p_toks, 8, EOS_TOKEN_ID, &mut srx_state, &mut srx_ws);
+        let gen_ids = loaded_srx_v01.generate_until_eos(&p_toks, 8, EOS_TOKEN_ID, &mut srx_v01_state, &mut srx_v01_ws);
         let gen_text = tokenizer.decode(&gen_ids[p_toks.len()..]);
         let passed = gen_text == expected;
         println!(
             "      [{}] {:<26}: \"{:<24}\" -> \"{:<20}\"",
             if passed { "PASS" } else { "FAIL" }, category, prompt, gen_text
         );
-        srx_test_results.push(TestCaseResult {
+        srx_v01_test_results.push(TestCaseResult {
             prompt: prompt.to_string(),
             generated: gen_text,
             expected: expected.to_string(),
@@ -218,76 +228,219 @@ fn main() {
         });
     }
 
-    // Hardware Latency Benchmark
-    srx_state.reset();
-    let srx_b_start = Instant::now();
+    srx_v01_state.reset();
+    let srx_v01_b_start = Instant::now();
     for i in 0..BENCH_STEPS {
         let pos = i % config.max_seq_len;
         if pos == 0 {
-            srx_state.reset();
+            srx_v01_state.reset();
         }
-        loaded_srx.step(i % config.vocab_size, pos, &mut srx_state, &mut srx_ws);
+        loaded_srx_v01.step(i % config.vocab_size, pos, &mut srx_v01_state, &mut srx_v01_ws);
     }
-    let srx_b_elapsed = srx_b_start.elapsed();
-    let srx_step_ns = srx_b_elapsed.as_nanos() as f64 / BENCH_STEPS as f64;
-    let srx_step_us = srx_step_ns / 1000.0;
-    let srx_tok_sec = BENCH_STEPS as f64 / srx_b_elapsed.as_secs_f64();
-    let srx_flops_per_token = 2 * config.param_count() as u64;
-    let srx_inf_gflops = (srx_flops_per_token as f64 * srx_tok_sec) / 1e9;
+    let srx_v01_b_elapsed = srx_v01_b_start.elapsed();
+    let srx_v01_step_ns = srx_v01_b_elapsed.as_nanos() as f64 / BENCH_STEPS as f64;
+    let srx_v01_step_us = srx_v01_step_ns / 1000.0;
+    let srx_v01_tok_sec = BENCH_STEPS as f64 / srx_v01_b_elapsed.as_secs_f64();
+    let srx_v01_flops_per_token = 2 * config.param_count() as u64;
+    let srx_v01_inf_gflops = (srx_v01_flops_per_token as f64 * srx_v01_tok_sec) / 1e9;
 
-    let srx_inf_telemetry = InferenceTelemetry {
-        flops_per_token: srx_flops_per_token,
+    let srx_v01_inf_telemetry = InferenceTelemetry {
+        flops_per_token: srx_v01_flops_per_token,
         bench_steps: BENCH_STEPS,
-        step_latency_ns: srx_step_ns,
-        step_latency_us: srx_step_us,
-        tokens_per_sec: srx_tok_sec,
-        gflops_per_sec: srx_inf_gflops,
+        step_latency_ns: srx_v01_step_ns,
+        step_latency_us: srx_v01_step_us,
+        tokens_per_sec: srx_v01_tok_sec,
+        gflops_per_sec: srx_v01_inf_gflops,
     };
 
-    let srx_report = SrxTelemetryReport::new(
-        srx_train_telemetry.clone(),
-        srx_inf_telemetry.clone(),
-        srx_test_results.clone(),
-        srx_state.memory_bytes(),
+    let srx_v01_report = SrxTelemetryReportV01::new(
+        srx_v01_train_telemetry.clone(),
+        srx_v01_inf_telemetry.clone(),
+        srx_v01_test_results.clone(),
+        srx_v01_state.memory_bytes(),
         config.max_seq_len,
     );
-    srx_report.save_to_file("telemetry_srx.txt").expect("Failed to write telemetry_srx.txt");
-    println!("    * SRX report saved to: telemetry_srx.txt\n");
+    srx_v01_report
+        .save_to_file("telemetry_srx_v01.txt")
+        .expect("Failed to write telemetry_srx_v01.txt");
+    println!("    * SRX v01 report saved to: telemetry_srx_v01.txt\n");
 
     // =========================================================================
-    // 5. COMPARATIVE TABLE: CLASSICAL TRANSFORMER VS SRXFORMER
+    // 5. SRXFORMER v02 (OPTIMIZED INNOVATION)
     // =========================================================================
     println!("================================================================================");
-    println!(" [5] ARCHITECTURAL & PERFORMANCE COMPARISON TABLE: CLASSICAL VS SRXFORMER");
+    println!(" [5] RUNNING SRXFORMER v02 (OPTIMIZED INNOVATION: POST-MUSIC RMSNORM + FAST GIVENS)");
     println!("================================================================================");
-    println!(" | {:<32} | {:<22} | {:<22} |", "Метрика / Характеристика", "Classical Transformer", "SRXformer (Innovation)");
-    println!(" |----------------------------------|------------------------|------------------------|");
-    println!(" | Addressing Principle             | Softmax Attention      | MUSIC Subspace Resonance|");
-    println!(" | Trainable Parameters             | 512 (1:1 Bitwise)      | 512 (1:1 Bitwise)      |");
-    println!(" | State Complexity (O-notation)    | O(N * d) (KV cache)    | O(d) (Phase & Matrix)  |");
-    println!(" | State Memory (N=32 context)      | 2,048 bytes            | 152 bytes (13.5x less) |");
-    println!(" | State Memory (N=1,024 context)   | 65,536 bytes           | 152 bytes (431x less)  |");
-    println!(" | State Memory (N=100,000 context) | 6.4 MB (Spills to DRAM)| 152 bytes (L1 Resident)|");
-    println!(" | Memory Hardware Bottleneck       | Memory-Bound (DRAM)    | Strictly L1 SRAM-Bound |");
-    println!(" | Initial Training Loss (PPL)      | {:.4} ({:.2})          | {:.4} ({:.2})          |",
+    let mut srx_v02_model = SrxTransformerV02::new_with_seed(config.clone(), 100)
+        .expect("Failed to initialize SrxTransformerV02");
+
+    println!("    * Training SRXformer v02 (Gain Clipping + Post-MUSIC RMSNorm + Epsilon Annealing) for {} epochs...", EPOCHS);
+    let srx_v02_train_telemetry = srx_v02_model.train_dataset(&tokens, EPOCHS, LR);
+    println!("      - Initial Loss: {:.4} (PPL: {:.2})", srx_v02_train_telemetry.initial_loss, srx_v02_train_telemetry.initial_perplexity);
+    println!("      - Final Loss:   {:.4} (PPL: {:.2})", srx_v02_train_telemetry.final_loss, srx_v02_train_telemetry.final_perplexity);
+    println!("      - Elapsed Time: {:.2} ms", srx_v02_train_telemetry.elapsed_ms);
+
+    let srx_v02_weights_path = "data/srx_v02_model_weights.bin";
+    srx_v02_model
+        .save_weights(srx_v02_weights_path)
+        .expect("Failed to save SRX v02 weights");
+    let loaded_srx_v02 = SrxTransformerV02::load_from_file(srx_v02_weights_path)
+        .expect("Failed to load SRX v02 model");
+
+    let mut srx_v02_ws = SrxWorkspaceV02::new(&config);
+    let mut srx_v02_state = SrxStateV02::new(&config);
+    let mut srx_v02_test_results = Vec::new();
+
+    println!("    * Evaluating Quality (10 control tasks):");
+    for (prompt, expected, category) in test_cases {
+        let p_toks = tokenizer.encode(prompt);
+        let gen_ids = loaded_srx_v02.generate_until_eos(&p_toks, 8, EOS_TOKEN_ID, &mut srx_v02_state, &mut srx_v02_ws);
+        let gen_text = tokenizer.decode(&gen_ids[p_toks.len()..]);
+        let passed = gen_text == expected;
+        println!(
+            "      [{}] {:<26}: \"{:<24}\" -> \"{:<20}\"",
+            if passed { "PASS" } else { "FAIL" }, category, prompt, gen_text
+        );
+        srx_v02_test_results.push(TestCaseResult {
+            prompt: prompt.to_string(),
+            generated: gen_text,
+            expected: expected.to_string(),
+            category: category.to_string(),
+            passed,
+        });
+    }
+
+    srx_v02_state.reset();
+    let srx_v02_b_start = Instant::now();
+    for i in 0..BENCH_STEPS {
+        let pos = i % config.max_seq_len;
+        if pos == 0 {
+            srx_v02_state.reset();
+        }
+        loaded_srx_v02.step(i % config.vocab_size, pos, &mut srx_v02_state, &mut srx_v02_ws);
+    }
+    let srx_v02_b_elapsed = srx_v02_b_start.elapsed();
+    let srx_v02_step_ns = srx_v02_b_elapsed.as_nanos() as f64 / BENCH_STEPS as f64;
+    let srx_v02_step_us = srx_v02_step_ns / 1000.0;
+    let srx_v02_tok_sec = BENCH_STEPS as f64 / srx_v02_b_elapsed.as_secs_f64();
+    let srx_v02_flops_per_token = 2 * config.param_count() as u64;
+    let srx_v02_inf_gflops = (srx_v02_flops_per_token as f64 * srx_v02_tok_sec) / 1e9;
+
+    let srx_v02_inf_telemetry = InferenceTelemetry {
+        flops_per_token: srx_v02_flops_per_token,
+        bench_steps: BENCH_STEPS,
+        step_latency_ns: srx_v02_step_ns,
+        step_latency_us: srx_v02_step_us,
+        tokens_per_sec: srx_v02_tok_sec,
+        gflops_per_sec: srx_v02_inf_gflops,
+    };
+
+    let srx_v02_report = SrxTelemetryReportV02::new(
+        srx_v02_train_telemetry.clone(),
+        srx_v02_inf_telemetry.clone(),
+        srx_v02_test_results.clone(),
+        srx_v02_state.memory_bytes(),
+        config.max_seq_len,
+    );
+    srx_v02_report
+        .save_to_file("telemetry_srx_v02.txt")
+        .expect("Failed to write telemetry_srx_v02.txt");
+    println!("    * SRX v02 report saved to: telemetry_srx_v02.txt\n");
+
+    // =========================================================================
+    // 6. TRI-SYSTEM COMPARATIVE TABLE
+    // =========================================================================
+    println!("=================================================================================================================");
+    println!(" [6] TRI-SYSTEM ARCHITECTURAL & PERFORMANCE COMPARISON TABLE");
+    println!("=================================================================================================================");
+    println!(
+        " | {:<32} | {:<22} | {:<22} | {:<22} |",
+        "Метрика / Характеристика", "Classical v01", "SRXformer v01 (Frozen)", "SRXformer v02 (Optimized)"
+    );
+    println!(" |----------------------------------|------------------------|------------------------|------------------------|");
+    println!(
+        " | {:<32} | {:<22} | {:<22} | {:<22} |",
+        "Addressing Principle", "Softmax Attention", "MUSIC Resonant Gain", "MUSIC + Post RMSNorm"
+    );
+    println!(
+        " | {:<32} | {:<22} | {:<22} | {:<22} |",
+        "Trigonometric Rotation Engine", "N/A", "Scalar libc sin/cos", "Fast AVX Taylor Poly"
+    );
+    println!(
+        " | {:<32} | {:<22} | {:<22} | {:<22} |",
+        "Spectral Click Mitigation", "N/A", "None (Gain Unbounded)", "w_clamped<=10 + RMSNorm"
+    );
+    println!(
+        " | {:<32} | {:<22} | {:<22} | {:<22} |",
+        "Trainable Parameters", "512 (1:1 Bitwise)", "512 (1:1 Bitwise)", "512 (1:1 Bitwise)"
+    );
+    println!(
+        " | {:<32} | {:<22} | {:<22} | {:<22} |",
+        "State Complexity (O-notation)", "O(N * d) (KV cache)", "O(d) (Phase & Memory)", "O(d) (Phase & Memory)"
+    );
+    println!(
+        " | {:<32} | {:<22} | {:<22} | {:<22} |",
+        "State Memory (N=32 tokens)", "2,048 bytes", "152 bytes (13.5x less)", "152 bytes (13.5x less)"
+    );
+    println!(
+        " | {:<32} | {:<22} | {:<22} | {:<22} |",
+        "State Memory (N=1,024 tokens)", "65,536 bytes", "152 bytes (431x less)", "152 bytes (431x less)"
+    );
+    println!(
+        " | {:<32} | {:<22} | {:<22} | {:<22} |",
+        "State Memory (N=100,000 tokens)", "6.4 MB (Spills to DRAM)", "152 bytes (L1 Resident)", "152 bytes (L1 Resident)"
+    );
+    println!(
+        " | {:<32} | {:<22} | {:<22} | {:<22} |",
+        "Hardware Cache Resident Status", "Exceeds L1D at N*=500", "100% L1D Resident", "100% L1D Resident"
+    );
+    println!(
+        " | {:<32} | {:.4} ({:.2})          | {:.4} ({:.2})          | {:.4} ({:.2})          |",
+        "Initial Training Loss (PPL)",
         classic_train_telemetry.initial_loss, classic_train_telemetry.initial_perplexity,
-        srx_train_telemetry.initial_loss, srx_train_telemetry.initial_perplexity
+        srx_v01_train_telemetry.initial_loss, srx_v01_train_telemetry.initial_perplexity,
+        srx_v02_train_telemetry.initial_loss, srx_v02_train_telemetry.initial_perplexity
     );
-    println!(" | Final Training Loss (PPL)        | {:.4} ({:.2})          | {:.4} ({:.2})          |",
+    println!(
+        " | {:<32} | {:.4} ({:.2})          | {:.4} ({:.2})          | {:.4} ({:.2})          |",
+        "Final Training Loss (PPL)",
         classic_train_telemetry.final_loss, classic_train_telemetry.final_perplexity,
-        srx_train_telemetry.final_loss, srx_train_telemetry.final_perplexity
+        srx_v01_train_telemetry.final_loss, srx_v01_train_telemetry.final_perplexity,
+        srx_v02_train_telemetry.final_loss, srx_v02_train_telemetry.final_perplexity
     );
-    println!(" | Single Step Latency (Inference)  | {:.1} ns ({:.3} µs)     | {:.1} ns ({:.3} µs)     |",
-        classic_step_ns, classic_step_us, srx_step_ns, srx_step_us
+    println!(
+        " | {:<32} | {:.1} ns ({:.3} µs)     | {:.1} ns ({:.3} µs)     | {:.1} ns ({:.3} µs)     |",
+        "Single Step Latency (Inference)",
+        classic_step_ns, classic_step_us,
+        srx_v01_step_ns, srx_v01_step_us,
+        srx_v02_step_ns, srx_v02_step_us
     );
-    println!(" | Inference Throughput             | {:.0} tok/sec          | {:.0} tok/sec          |",
-        classic_tok_sec, srx_tok_sec
+    println!(
+        " | {:<32} | {:.0} tok/sec          | {:.0} tok/sec          | {:.0} tok/sec          |",
+        "Inference Throughput",
+        classic_tok_sec, srx_v01_tok_sec, srx_v02_tok_sec
     );
-    println!(" | Exact Match Accuracy (Quality)   | {:.1}% ({}/10)          | {:.1}% ({}/10)          |",
-        classic_report.exact_match_accuracy, classic_test_results.iter().filter(|t| t.passed).count(),
-        srx_report.exact_match_accuracy, srx_test_results.iter().filter(|t| t.passed).count()
+    let classic_passed = classic_test_results.iter().filter(|t| t.passed).count();
+    let srx_v01_passed = srx_v01_test_results.iter().filter(|t| t.passed).count();
+    let srx_v02_passed = srx_v02_test_results.iter().filter(|t| t.passed).count();
+    println!(
+        " | {:<32} | {:.1}% ({}/10)          | {:.1}% ({}/10)          | {:.1}% ({}/10)          |",
+        "Exact Match Accuracy (Quality)",
+        classic_report.exact_match_accuracy, classic_passed,
+        srx_v01_report.exact_match_accuracy, srx_v01_passed,
+        srx_v02_report.exact_match_accuracy, srx_v02_passed
     );
-    println!(" ================================================================================\n");
+    let cat_task_classic = classic_test_results.iter().find(|t| t.prompt.contains("кто кот")).map(|t| t.passed).unwrap_or(false);
+    let cat_task_v01 = srx_v01_test_results.iter().find(|t| t.prompt.contains("кто кот")).map(|t| t.passed).unwrap_or(false);
+    let cat_task_v02 = srx_v02_test_results.iter().find(|t| t.prompt.contains("кто кот")).map(|t| t.passed).unwrap_or(false);
+    println!(
+        " | {:<32} | {:<22} | {:<22} | {:<22} |",
+        "\"Кто кот\" Artifact Verification",
+        if cat_task_classic { "PASS" } else { "FAIL" },
+        if cat_task_v01 { "PASS" } else { "FAIL (Spectral Click)" },
+        if cat_task_v02 { "PASS (Resolved!)" } else { "FAIL" }
+    );
+    println!(" =================================================================================================================\n");
 
-    println!("All telemetries recorded successfully into `telemetry_classic.txt` and `telemetry_srx.txt`.");
+    println!("All telemetries recorded successfully into `telemetry_classic_v01.txt`, `telemetry_srx_v01.txt`, and `telemetry_srx_v02.txt`.");
 }
