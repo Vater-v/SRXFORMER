@@ -20,6 +20,10 @@ path = "src/bin/generate_data.rs"
 name = "corpus_v2_bench"
 path = "src/bin/corpus_v2_bench.rs"
 
+[[bin]]
+name = "spectral_analysis"
+path = "src/bin/spectral_analysis.rs"
+
 [profile.release]
 opt-level = 3
 lto = true

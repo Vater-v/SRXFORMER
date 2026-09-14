@@ -18,6 +18,6 @@ pub use rng::FastRng;
 pub use telemetry::{InferenceTelemetry, TestCaseResult, TelemetryReport, TrainTelemetry};
 pub use tokenizer::{Tokenizer, VOCAB, VOCAB_V2, BOT_TOKEN_ID, EOS_TOKEN_ID, PAD_TOKEN_ID, USER_TOKEN_ID};
 pub use train::{
-    backward_loss, forward_loss, train_dataset, train_instruct, train_pretrain, AdamW,
-    TrainMetrics, TrainWorkspace, TransformerGrad,
+    backward_loss, forward_loss, split_into_eos_sequences, train_dataset, train_instruct,
+    train_pretrain, AdamW, TrainMetrics, TrainWorkspace, TransformerGrad,
 };

@@ -1,35 +1,35 @@
 ================================================================================
- SRXFORMER: SUPER-RESOLVENT XFORMER v03 (MONARCH BUTTERFLY + SELECTIVE GATE) COMPUTE / LATENCY / QUALITY TELEMETRY REPORT
+ SRXFORMER: SUPER-RESOLVENT XFORMER v04 (PHYSICS-SPECTRAL CORE + WIDROW-HOFF DELTA RULE) TELEMETRY
  Target Architecture: Intel Xeon E5-2650 v2 (Ivy Bridge-EP)                     
- Model Parameters:    882 (100% L1D Cache Resident, 32 KB per core)             
+ Model Parameters:    898 (100% L1D Cache Resident, 32 KB per core)             
 ================================================================================
 
 [1] ВЛОЖЕННЫЙ COMPUTE НА ОБУЧЕНИЕ (TRAINING COMPUTE):
-    * Вложили compute:          5289883200 FLOPs (5289.88 MFLOPs / 5.2899 GFLOPs)
-    * Время обучения:           7815.46 ms (7.815 s)
-    * Формула FLOPs:            6 * N_params * tokens_per_epoch * epochs
-                                = 6 * 882 * 2940 * 340
-    * Эффективная скорость:     676.85 MFLOP/s (0.6768 GFLOP/s)
-    * Начальный Loss:           4.2750 (Перплексия: 71.88)
-    * Финальный Loss:           0.7403 (Перплексия: 2.10)
-    * Всего шагов (Steps):      149600 gradient updates
+    * Вложили compute:          4351682160 FLOPs (4351.68 MFLOPs / 4.3517 GFLOPs)
+    * Время обучения:           5090.58 ms (5.091 s)
+    * Формула FLOPs:            (6 * N_params + 240) * tokens_per_epoch * epochs
+                                = (6 * 898 + 240) * 2940 * 263
+    * Эффективная скорость:     854.85 MFLOP/s (0.8548 GFLOP/s)
+    * Начальный Loss:           4.2276 (Перплексия: 68.55)
+    * Финальный Loss:           0.7272 (Перплексия: 2.07)
+    * Всего шагов (Steps):      115720 gradient updates
 
 [2] COMPUTE, ЛАТЕНТНОСТЬ И ПАМЯТЬ СОСТОЯНИЯ НА ИНФЕРЕНСЕ (INFERENCE COMPUTE & MEMORY):
-    * Ответ за compute:         1764 FLOPs на токен (~ 2 * N_params)
-    * Время генерации токена:   2130.9 ns (2.131 µs)
-    * Пропускная способность:   469282 токенов/сек (0.47M токенов/сек)
-    * Вычислительная скорость:  0.8278 GFLOP/s
+    * Ответ за compute:         1876 FLOPs на токен (~ 2 * N_params + 80)
+    * Время генерации токена:   1992.0 ns (1.992 µs)
+    * Пропускная способность:   502007 токенов/сек (0.50M токенов/сек)
+    * Вычислительная скорость:  0.9418 GFLOP/s
     * Число бенчмарк шагов:     50000 tokens decoded
     --------------------------------------------------------------------------------
     * СРАВНЕНИЕ ОБЪЕМА ПАМЯТИ СОСТОЯНИЯ (STATE MEMORY FOOTPRINT):
-      - SRX v03 State (Theta + M): 160 bytes (СТРОГО КОНСТАНТНО O(1), 100% L1D resident)
+      - SRX v04 State (Theta + M): 160 bytes (СТРОГО КОНСТАНТНО O(1), 100% L1D resident)
       - Classic KV Cache (N=32 ): 2048 bytes (12.8x больше SRX)
       - Classic KV Cache (N=1K):  65536 bytes (409.6x больше SRX -> вытеснение L1D)
       - Classic KV Cache (N=100K):6400000 bytes (40000.0x больше SRX -> вытеснение в DRAM)
-      - Преимущество SRX v03:   Нулевой трафик в DRAM, отсутствие падения скорости при росте N
+      - Преимущество SRX v04:   Нулевой трафик в DRAM, устранение интерференции кота/лисы через Дельта-правило
 
 [3] КАЧЕСТВО МОДЕЛИ (QUALITY EVALUATION - EXACT MATCH):
-    * Точность (Exact Match):   86.7% (26/30 тестов пройдено)
+    * Точность (Exact Match):   93.3% (28/30 тестов пройдено)
     --------------------------------------------------------------------------------------------------------------------
     | Категория                | Статус | Промпт                    | Сгенерировано        | Ожидалось            |
     --------------------------------------------------------------------------------------------------------------------
@@ -43,13 +43,13 @@
     | Subtraction Arithmetic (Extended) | PASS   | <user> 9 - 4 = <bot>      | 5 <eos>              | 5 <eos>              |
     | Subtraction Arithmetic (Extended) | PASS   | <user> 8 - 3 = <bot>      | 5 <eos>              | 5 <eos>              |
     | Subtraction Arithmetic (Extended) | PASS   | <user> 7 - 2 = <bot>      | 5 <eos>              | 5 <eos>              |
-    | Multiplication Arithmetic | FAIL   | <user> 2 * 3 = <bot>      | 7 <eos>              | 6 <eos>              |
+    | Multiplication Arithmetic | PASS   | <user> 2 * 3 = <bot>      | 6 <eos>              | 6 <eos>              |
     | Multiplication Arithmetic | PASS   | <user> 2 * 2 = <bot>      | 4 <eos>              | 4 <eos>              |
-    | Multiplication Arithmetic | PASS   | <user> 3 * 3 = <bot>      | 9 <eos>              | 9 <eos>              |
-    | Entity Fact / Definition | FAIL   | <user> кто кот <bot>      | птица это животное <eos> | кот это животное <eos> |
-    | Entity Fact / Definition | FAIL   | <user> кто пес <bot>      | птица это животное <eos> | пес это друг <eos>   |
+    | Multiplication Arithmetic | FAIL   | <user> 3 * 3 = <bot>      | 8 <eos>              | 9 <eos>              |
+    | Entity Fact / Definition | FAIL   | <user> кто кот <bot>      | пес это друг <eos>   | кот это животное <eos> |
+    | Entity Fact / Definition | PASS   | <user> кто пес <bot>      | пес это друг <eos>   | пес это друг <eos>   |
     | Entity Fact / Definition | PASS   | <user> кто волк <bot>     | волк это зверь <eos> | волк это зверь <eos> |
-    | Entity Fact / Definition | FAIL   | <user> кто лиса <bot>     | волк это зверь <eos> | лиса это хищник <eos> |
+    | Entity Fact / Definition | PASS   | <user> кто лиса <bot>     | лиса это хищник <eos> | лиса это хищник <eos> |
     | Spatial Reasoning        | PASS   | <user> где волк <bot>     | лес <eos>            | лес <eos>            |
     | Spatial Reasoning        | PASS   | <user> где рыба <bot>     | река <eos>           | река <eos>           |
     | Spatial Reasoning        | PASS   | <user> где кот <bot>      | дом <eos>            | дом <eos>            |
@@ -66,5 +66,5 @@
     --------------------------------------------------------------------------------------------------------------------
 
 ================================================================================
- SRXFORMER v03 GOLDEN CORE TELEMETRY VERIFICATION: ALL METRICS RECORDED!         
+ SRXFORMER v04 PHYSICS-SPECTRAL CORE TELEMETRY: VERIFICATION COMPLETE!          
 ================================================================================

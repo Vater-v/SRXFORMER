@@ -125,6 +125,60 @@ impl TransformerConfig {
         }
     }
 
+    /// Strict parameter parity baseline configuration for Classical Transformer (896 parameters).
+    /// (Vocab = 41, d_model = 8, n_heads = 2, n_layers = 1, d_ff = 18, max_seq_len = 32,
+    /// RMSNorm, Relu, Sinusoidal, tie_word_embeddings = true, use_bias = false).
+    /// Parameter breakdown:
+    /// - Token Embeddings: 41 * 8 = 328
+    /// - Attention Projections: 4 * (8 * 8) = 256
+    /// - Norms (Pre-Attn, Pre-FFN, Final): 3 * 8 = 24
+    /// - FFN (W1 [18, 8] + W2 [8, 18]): 144 + 144 = 288
+    /// Total = 608 + 288 = EXACTLY 896 parameters (3,584 bytes -> 100% L1D Cache resident).
+    pub fn lang_v2_parity() -> Self {
+        Self {
+            vocab_size: 41,
+            d_model: 8,
+            n_heads: 2,
+            n_layers: 1,
+            d_ff: 18,
+            max_seq_len: 32,
+            eps: 1e-5,
+            norm_type: NormType::RMSNorm,
+            activation: ActivationType::Relu,
+            pos_encoding: PosEncodingType::Sinusoidal,
+            tie_word_embeddings: true,
+            use_bias: false,
+        }
+    }
+
+    /// Strict parameter parity configuration for SRX v04 Physics-Spectral Core (898 parameters).
+    /// (Vocab = 41, d_model = 8, n_heads = 2, head_dim = 4, n_layers = 1, d_ff = 17, max_seq_len = 32,
+    /// RMSNorm, Relu, Sinusoidal, tie_word_embeddings = true, use_bias = false).
+    /// Parameter breakdown:
+    /// - Token Embeddings: 41 * 8 = 328
+    /// - Attention Projections: 4 * (8 * 8) = 256
+    /// - Selective Memory Gate: W_gamma [2, 8] + b_gamma [2] = 16 + 2 = 18
+    /// - Norms (Pre-Attn, Pre-FFN, Final): 3 * 8 = 24
+    /// - FFN (W1 [17, 8] + W2 [8, 17]): 136 + 136 = 272
+    /// Total = 608 + 18 + 272 = EXACTLY 898 parameters (3,592 bytes -> 100% L1D Cache resident).
+    /// Delta vs Classical Baseline: |898 - 896| = 2 parameters (0.22% delta, corridor 896 ± 4).
+    pub fn srx_v04_parity() -> Self {
+        Self {
+            vocab_size: 41,
+            d_model: 8,
+            n_heads: 2,
+            n_layers: 1,
+            d_ff: 17,
+            max_seq_len: 32,
+            eps: 1e-5,
+            norm_type: NormType::RMSNorm,
+            activation: ActivationType::Relu,
+            pos_encoding: PosEncodingType::Sinusoidal,
+            tie_word_embeddings: true,
+            use_bias: false,
+        }
+    }
+
     /// Micro configuration (~3.5k parameters) with 2 layers and untied head.
     pub fn micro() -> Self {
         Self {
@@ -303,6 +357,14 @@ mod tests {
         assert_eq!(config.validate(), Ok(()));
         let count = config.param_count();
         assert_eq!(count, 864, "Lang v2 config must have exactly 864 parameters!");
+    }
+
+    #[test]
+    fn test_lang_v2_parity_param_count() {
+        let config = TransformerConfig::lang_v2_parity();
+        assert_eq!(config.validate(), Ok(()));
+        let count = config.param_count();
+        assert_eq!(count, 896, "Classical parity config must have exactly 896 parameters!");
     }
 
     #[test]

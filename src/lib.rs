@@ -10,6 +10,7 @@ pub mod classic;
 pub mod srx_v01;
 pub mod srx_v02;
 pub mod srx_v03;
+pub mod srx_v04;
 
 // Re-export classic transformer module
 pub use classic::{
@@ -58,13 +59,32 @@ pub use srx_v03::{
     backward_loss as srx_v03_backward_loss, fast_sin_cos as srx_v03_fast_sin_cos,
     forward_loss as srx_v03_forward_loss, l2_normalize as srx_v03_l2_normalize,
     l2_normalize_backward as srx_v03_l2_normalize_backward,
-    train_dataset as srx_v03_train_dataset, SrxAdamW as SrxAdamWV03,
-    SrxAttention as SrxAttentionV03, SrxGrad as SrxGradV03, SrxLayer as SrxLayerV03,
-    SrxState as SrxStateV03, SrxTelemetryReport as SrxTelemetryReportV03,
+    train_dataset as srx_v03_train_dataset, split_into_eos_sequences as srx_v03_split_into_eos_sequences,
+    SrxAdamW as SrxAdamWV03, SrxAttention as SrxAttentionV03, SrxGrad as SrxGradV03,
+    SrxLayer as SrxLayerV03, SrxState as SrxStateV03, SrxTelemetryReport as SrxTelemetryReportV03,
     SrxTrainWorkspace as SrxTrainWorkspaceV03, SrxTransformer as SrxTransformerV03,
     SrxWorkspace as SrxWorkspaceV03, SRX_ALPHA as SRX_V03_ALPHA,
     SRX_EPS_DEFAULT as SRX_V03_EPS_DEFAULT, SRX_GAMMA_BASE as SRX_V03_GAMMA_BASE,
     SRX_W_MAX as SRX_V03_W_MAX,
+};
+
+// Re-export SRX v04 (Physics-Spectral Core & Widrow-Hoff Delta Rule)
+pub use srx_v04::{
+    analyze_corpus as srx_v04_analyze_corpus,
+    apply_butterfly_4 as srx_v04_apply_butterfly_4,
+    apply_butterfly_4_backward as srx_v04_apply_butterfly_4_backward,
+    apply_butterfly_4_inplace as srx_v04_apply_butterfly_4_inplace,
+    backward_loss as srx_v04_backward_loss, fast_sin_cos as srx_v04_fast_sin_cos,
+    forward_loss as srx_v04_forward_loss, l2_normalize as srx_v04_l2_normalize,
+    l2_normalize_backward as srx_v04_l2_normalize_backward,
+    split_into_eos_sequences as srx_v04_split_into_eos_sequences,
+    train_dataset as srx_v04_train_dataset, SrxAdamW as SrxAdamWV04,
+    SrxAttention as SrxAttentionV04, SrxGrad as SrxGradV04, SrxLayer as SrxLayerV04,
+    SrxState as SrxStateV04, SrxTelemetryReport as SrxTelemetryReportV04,
+    SrxTrainWorkspace as SrxTrainWorkspaceV04, SrxTransformer as SrxTransformerV04,
+    SrxWorkspace as SrxWorkspaceV04, SRX_ALPHA as SRX_V04_ALPHA,
+    SRX_EPS_DEFAULT as SRX_V04_EPS_DEFAULT, SRX_GAMMA_BASE as SRX_V04_GAMMA_BASE,
+    SRX_W_MAX as SRX_V04_W_MAX,
 };
 
 // Primary SRX exports map to v02 (preserves 100% test compatibility)
