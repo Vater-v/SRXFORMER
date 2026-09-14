@@ -371,6 +371,13 @@ pub struct TrainMetrics {
     pub total_steps: usize,
 }
 
+/// Result of the two-stage training pipeline (Stage 1 Pretrain + Stage 2 Instruct with Replay).
+#[derive(Debug, Clone)]
+pub struct TwoStagePipelineResult {
+    pub pretrain_metrics: TrainMetrics,
+    pub instruct_metrics: TrainMetrics,
+}
+
 /// Forward pass recording activations and computing cross-entropy loss.
 pub fn forward_loss(
     model: &Transformer,
@@ -1161,57 +1168,100 @@ pub fn train_pretrain(
     }
 }
 
-/// Fine-tunes the model on instruction dialogue tokens (SFT) with replay mix to prevent catastrophic forgetting.
-pub fn train_instruct(
+/// Fine-tunes the model on instruction dialogue tokens (SFT) with replay mix (20-30% basic facts)
+/// from the pretrain dataset to prevent catastrophic forgetting.
+pub fn train_instruct_with_replay(
     model: &mut Transformer,
-    tokens: &[usize],
+    instruct_tokens: &[usize],
+    replay_tokens: &[usize],
     config: &TransformerConfig,
     epochs: usize,
     lr: f32,
+    replay_ratio: f32,
 ) -> TrainMetrics {
     let start_time = Instant::now();
     let mut ws = TrainWorkspace::new(config);
     let mut grad = TransformerGrad::new(config);
     let mut optimizer = AdamW::new(config, 0.0);
 
-    let mut sequences = split_into_eos_sequences(tokens, config.max_seq_len);
-    assert!(!sequences.is_empty(), "Instruct corpus has no valid sequences");
+    let mut instruct_sequences = split_into_eos_sequences(instruct_tokens, config.max_seq_len);
+    assert!(!instruct_sequences.is_empty(), "Instruct corpus has no valid sequences");
+
+    let replay_sequences = if !replay_tokens.is_empty() && replay_ratio > 0.0 {
+        split_into_eos_sequences(replay_tokens, config.max_seq_len)
+    } else {
+        Vec::new()
+    };
 
     let mut loss_history = Vec::with_capacity(epochs);
     let mut total_steps = 0;
 
-    let eval_count = sequences.len().min(10);
+    let eval_count = instruct_sequences.len().min(10);
     let mut initial_loss = 0.0f32;
-    for seq in &sequences[..eval_count] {
+    for seq in &instruct_sequences[..eval_count] {
         initial_loss += forward_loss(model, seq, &mut ws);
     }
     initial_loss /= eval_count as f32;
 
     let mut rng = super::rng::FastRng::new(5678);
 
+    // Number of replay sequences to include in each epoch to achieve replay_ratio proportion
+    let replay_count = if !replay_sequences.is_empty() && replay_ratio > 0.0 {
+        let n = ((instruct_sequences.len() as f32 * replay_ratio) / (1.0 - replay_ratio).max(0.01)).round() as usize;
+        n.max(1)
+    } else {
+        0
+    };
+
+    let mut replay_idx = 0;
+
     for epoch in 0..epochs {
-        // Fisher-Yates shuffle to eliminate recency bias
-        for i in (1..sequences.len()).rev() {
+        // Fisher-Yates shuffle instruct_sequences in-place (preserves continuous permutation)
+        for i in (1..instruct_sequences.len()).rev() {
             let j = (rng.next_u64() as usize) % (i + 1);
-            sequences.swap(i, j);
+            instruct_sequences.swap(i, j);
         }
 
-        let mut epoch_loss = 0.0f32;
         let progress = epoch as f32 / epochs.max(1) as f32;
         let current_lr = (lr * 0.5 * (1.0 + (progress * std::f32::consts::PI).cos())).max(lr * 0.1);
 
-        for seq in &sequences {
-            grad.zero();
-            let loss = forward_loss(model, seq, &mut ws);
-            epoch_loss += loss;
-            backward_loss(model, seq, &mut ws, &mut grad);
-            grad.clip_grad_norm(1.0);
-            optimizer.step(model, &grad, current_lr);
-            total_steps += 1;
-        }
+        if replay_count == 0 || replay_sequences.is_empty() {
+            let mut epoch_loss = 0.0f32;
+            for seq in &instruct_sequences {
+                grad.zero();
+                let loss = forward_loss(model, seq, &mut ws);
+                epoch_loss += loss;
+                backward_loss(model, seq, &mut ws, &mut grad);
+                grad.clip_grad_norm(1.0);
+                optimizer.step(model, &grad, current_lr);
+                total_steps += 1;
+            }
+            let avg_epoch_loss = epoch_loss / instruct_sequences.len() as f32;
+            loss_history.push(avg_epoch_loss);
+        } else {
+            let mut epoch_sequences = instruct_sequences.clone();
+            for _ in 0..replay_count {
+                epoch_sequences.push(replay_sequences[replay_idx % replay_sequences.len()].clone());
+                replay_idx += 1;
+            }
+            for i in (1..epoch_sequences.len()).rev() {
+                let j = (rng.next_u64() as usize) % (i + 1);
+                epoch_sequences.swap(i, j);
+            }
 
-        let avg_epoch_loss = epoch_loss / sequences.len() as f32;
-        loss_history.push(avg_epoch_loss);
+            let mut epoch_loss = 0.0f32;
+            for seq in &epoch_sequences {
+                grad.zero();
+                let loss = forward_loss(model, seq, &mut ws);
+                epoch_loss += loss;
+                backward_loss(model, seq, &mut ws, &mut grad);
+                grad.clip_grad_norm(1.0);
+                optimizer.step(model, &grad, current_lr);
+                total_steps += 1;
+            }
+            let avg_epoch_loss = epoch_loss / epoch_sequences.len() as f32;
+            loss_history.push(avg_epoch_loss);
+        }
     }
 
     let final_loss = *loss_history.last().unwrap_or(&initial_loss);
@@ -1224,6 +1274,17 @@ pub fn train_instruct(
         elapsed_ms,
         total_steps,
     }
+}
+
+/// Convenience wrapper for standard instruction fine-tuning without replay.
+pub fn train_instruct(
+    model: &mut Transformer,
+    tokens: &[usize],
+    config: &TransformerConfig,
+    epochs: usize,
+    lr: f32,
+) -> TrainMetrics {
+    train_instruct_with_replay(model, tokens, &[], config, epochs, lr, 0.0)
 }
 
 #[cfg(test)]

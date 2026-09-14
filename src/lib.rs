@@ -15,12 +15,13 @@ pub mod srx_v05;
 
 // Re-export classic transformer module
 pub use classic::{
-    backward_loss, forward_loss, train_dataset, train_instruct, train_pretrain, ActivationType,
-    AdamW, FastRng, FeedForward, InferenceTelemetry, InferenceWorkspace, KvCache,
-    MultiHeadAttention, NormType, PosEncodingType, TestCaseResult, TelemetryReport, Tokenizer,
-    TrainMetrics, TrainTelemetry, TrainWorkspace, Transformer, TransformerConfig, TransformerGrad,
-    TransformerLayer, VOCAB, VOCAB_CHINCHILLA, VOCAB_V2, VOCAB_V3, VOCAB_V4, BOT_TOKEN_ID,
-    EOS_TOKEN_ID, PAD_TOKEN_ID, USER_TOKEN_ID,
+    backward_loss, forward_loss, train_dataset, train_instruct, train_instruct_with_replay,
+    train_pretrain, ActivationType, AdamW, FastRng, FeedForward, InferenceTelemetry,
+    InferenceWorkspace, KvCache, MultiHeadAttention, NormType, PosEncodingType, TestCaseResult,
+    TelemetryReport, Tokenizer, TrainMetrics, TrainTelemetry, TrainWorkspace, Transformer,
+    TransformerConfig, TransformerGrad, TransformerLayer, TwoStagePipelineResult, VOCAB,
+    VOCAB_CHINCHILLA, VOCAB_V2, VOCAB_V3, VOCAB_V4, BOT_TOKEN_ID, EOS_TOKEN_ID, PAD_TOKEN_ID,
+    USER_TOKEN_ID,
 };
 
 // Re-export SRX v01 (Frozen Reference)
@@ -98,7 +99,11 @@ pub use srx_v05::{
     forward_loss as srx_v05_forward_loss, l2_normalize as srx_v05_l2_normalize,
     l2_normalize_backward as srx_v05_l2_normalize_backward,
     split_into_eos_sequences as srx_v05_split_into_eos_sequences,
-    train_dataset as srx_v05_train_dataset, SrxAdamW as SrxAdamWV05,
+    train_dataset as srx_v05_train_dataset,
+    train_instruct as srx_v05_train_instruct,
+    train_instruct_with_replay as srx_v05_train_instruct_with_replay,
+    train_pretrain as srx_v05_train_pretrain,
+    SrxAdamW as SrxAdamWV05,
     SrxAttention as SrxAttentionV05, SrxGrad as SrxGradV05, SrxLayer as SrxLayerV05,
     SrxState as SrxStateV05, SrxTelemetryReport as SrxTelemetryReportV05,
     SrxTrainWorkspace as SrxTrainWorkspaceV05, SrxTransformer as SrxTransformerV05,

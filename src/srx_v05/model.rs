@@ -229,6 +229,112 @@ impl SrxTransformer {
         super::train::train_dataset(self, tokens, epochs, lr)
     }
 
+    /// Stage 1: Pretraining on Chinchilla / raw corpus tokens.
+    pub fn train_pretrain(&mut self, tokens: &[usize], epochs: usize, lr: f32) -> crate::classic::TrainMetrics {
+        super::train::train_pretrain(self, tokens, epochs, lr)
+    }
+
+    /// Stage 2: Instruction fine-tuning without replay.
+    pub fn train_instruct(&mut self, tokens: &[usize], epochs: usize, lr: f32) -> crate::classic::TrainMetrics {
+        super::train::train_instruct(self, tokens, epochs, lr)
+    }
+
+    /// Stage 2: Instruction fine-tuning with replay mixing (20-30% base facts) to eliminate catastrophic forgetting.
+    pub fn train_instruct_with_replay(
+        &mut self,
+        instruct_tokens: &[usize],
+        replay_tokens: &[usize],
+        epochs: usize,
+        lr: f32,
+        replay_ratio: f32,
+    ) -> crate::classic::TrainMetrics {
+        super::train::train_instruct_with_replay(
+            self,
+            instruct_tokens,
+            replay_tokens,
+            epochs,
+            lr,
+            replay_ratio,
+        )
+    }
+
+    /// High-level Two-Stage Training Pipeline: Stage 1 Pretrain + Stage 2 Instruct with Replay Mix.
+    pub fn train_two_stage_pipeline(
+        &mut self,
+        pretrain_tokens: &[usize],
+        instruct_tokens: &[usize],
+        pretrain_epochs: usize,
+        instruct_epochs: usize,
+        pretrain_lr: f32,
+        instruct_lr: f32,
+        replay_ratio: f32,
+    ) -> crate::classic::TwoStagePipelineResult {
+        let pretrain_metrics = self.train_pretrain(pretrain_tokens, pretrain_epochs, pretrain_lr);
+        let instruct_metrics = self.train_instruct_with_replay(
+            instruct_tokens,
+            pretrain_tokens,
+            instruct_epochs,
+            instruct_lr,
+            replay_ratio,
+        );
+        crate::classic::TwoStagePipelineResult {
+            pretrain_metrics,
+            instruct_metrics,
+        }
+    }
+
+    /// High-level Two-Stage Training Pipeline directly from corpus text files.
+    pub fn train_chinchilla_pipeline_files<P1: AsRef<Path>, P2: AsRef<Path>>(
+        &mut self,
+        pretrain_path: P1,
+        instruct_path: P2,
+        tokenizer: &crate::classic::Tokenizer,
+        pretrain_epochs: usize,
+        instruct_epochs: usize,
+        pretrain_lr: f32,
+        instruct_lr: f32,
+        replay_ratio: f32,
+    ) -> Result<crate::classic::TwoStagePipelineResult, String> {
+        let pretrain_text = std::fs::read_to_string(pretrain_path.as_ref())
+            .map_err(|e| format!("Failed to read pretrain file: {}", e))?;
+        let pretrain_tokens = tokenizer.encode(&pretrain_text);
+        if pretrain_tokens.is_empty() {
+            return Err("Pretrain file contains no valid tokens".to_string());
+        }
+
+        let instruct_text = std::fs::read_to_string(instruct_path.as_ref())
+            .map_err(|e| format!("Failed to read instruct file: {}", e))?;
+        let instruct_tokens = tokenizer.encode(&instruct_text);
+        if instruct_tokens.is_empty() {
+            return Err("Instruct file contains no valid tokens".to_string());
+        }
+
+        Ok(self.train_two_stage_pipeline(
+            &pretrain_tokens,
+            &instruct_tokens,
+            pretrain_epochs,
+            instruct_epochs,
+            pretrain_lr,
+            instruct_lr,
+            replay_ratio,
+        ))
+    }
+
+    /// Loads weights from a binary file into this existing model instance.
+    pub fn load_weights<P: AsRef<Path>>(&mut self, path: P) -> std::io::Result<()> {
+        let loaded = Self::load_from_file(path)?;
+        if self.config != loaded.config {
+            return Err(std::io::Error::new(
+                std::io::ErrorKind::InvalidData,
+                format!("Config mismatch: model {:?} vs file {:?}", self.config, loaded.config),
+            ));
+        }
+        self.token_embeddings = loaded.token_embeddings;
+        self.layers = loaded.layers;
+        self.final_norm_gamma = loaded.final_norm_gamma;
+        Ok(())
+    }
+
     /// Serializes model weights to a binary file with b"SRX5" header.
     pub fn save_weights<P: AsRef<Path>>(&self, path: P) -> std::io::Result<()> {
         let mut file = File::create(path)?;

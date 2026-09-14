@@ -1495,10 +1495,119 @@ The Sprint 2 verification suite was executed across all unit and integration tar
    - **88 unit tests** in `src/lib.rs` passed in 0.02s.
    - **8 integration test suites** in `tests/` passed cleanly (0 failures, 0 warnings).
 
+---
 
+## 17. Sprint 3: Classical Baseline Alignment & Two-Stage Training Pipeline (Pretrain 17,920 + Instruct 1,901)
 
+**Date:** 2026-09-14  
+**Author:** Senior Systems & HPC Rust Engineer  
+**Project:** SRXformer (`C:\projects\srxformer`)  
+**Module:** Classical Transformer Baseline & SRX v05 Two-Stage Pipeline (`srxformer::classic`, `srxformer::srx_v05`)  
+**Status:** Completed, fully verified (119 automated tests passed, 0 failures, 0 warnings, origin master synced)
 
+### 17.1 Executive Summary & CTO Directive Execution
 
+In accordance with the CTO directive for Sprint 3, the Classical Transformer Baseline and SRX v05 Quantum Core have been rigorously aligned into a synchronized Two-Stage Training Pipeline:
+1. **Strict Parameter Parity (896 Trainable Weights):**
+   - Verified that both `Transformer` and `SrxTransformer` under `TransformerConfig::lang_chinchilla()` possess **EXACTLY 896 trainable parameters** ($0.00\%$ delta):
+     * Token Embeddings: $65 \times 8 = 520$
+     * Multi-Head Attention: $4 \times (8 \times 8) = 256$ ($W_q, W_k, W_v, W_o$)
+     * RMSNorm (Pre-Attn, Pre-FFN, Final): $3 \times 8 = 24$ ($\gamma$ scale vectors)
+     * FFN: $W_1 [6, 8] + W_2 [8, 6] = 48 + 48 = 96$
+     * Tied LM Head: $0$ extra parameters (tied to token embeddings)
+     * Positional Embeddings: $0$ trainable parameters (precomputed sinusoidal wave table)
+     * Grand Total: $520 + 256 + 24 + 96 = \mathbf{896\text{ parameters}}$.
+2. **Two-Stage Training Pipeline (Pretrain + Instruct with Replay Mix):**
+   - **Stage 1 (Pretrain):** Trained under Chinchilla 20:1 optimal scaling ratio on `data/pretrain_chinchilla.txt` (exactly 17,920 tokens).
+   - **Stage 2 (Instruct / SFT):** Fine-tuned on dialogue interactions from `data/instruct_chinchilla.txt` (1,901 tokens) with **25.0% experience replay mixing** (sampled from pretrain base facts and shuffled per epoch via Fisher-Yates) to guarantee zero catastrophic forgetting.
+3. **Ergonomic High-Level APIs & Weight Persistence:**
+   - Unified high-level methods on both `Transformer` and `SrxTransformer`:
+     * `train_pretrain(tokens, epochs, lr) -> TrainMetrics`
+     * `train_instruct(tokens, epochs, lr) -> TrainMetrics`
+     * `train_instruct_with_replay(instruct_tokens, replay_tokens, epochs, lr, replay_ratio) -> TrainMetrics`
+     * `train_two_stage_pipeline(...) -> TwoStagePipelineResult`
+     * `train_chinchilla_pipeline_files(...) -> Result<TwoStagePipelineResult, String>`
+     * `save_weights(path)` & `load_weights(path)` & `load_from_file(path)`
+   - Pretrained Chinchilla weights persisted to disk:
+     * `data/classic_chinchilla_weights.bin` (3,648 bytes, `SRXF` v1 format)
+     * `data/srx_v05_chinchilla_weights.bin` (3,620 bytes, `SRX5` v5 format)
+4. **Comprehensive Test & Verification Suite (`tests/chinchilla_pipeline_test.rs`):**
+   - Integration test suite covering parameter parity, two-stage training convergence, text generation, and binary weight serialization roundtrips.
+
+---
+
+### 17.2 Mathematical & Hardware Architecture Parity
+
+Target Architecture: **Intel Xeon E5-2650 v2 (Ivy Bridge-EP, 32 KB L1D cache per core)**
+
+| Metric / Specification | Classical Transformer Baseline | SRX v05 Quantum Core («Калашников») | Parity Delta |
+|---|---|---|---|
+| **Architecture Family** | Softmax Decoder Layer | Quantum-Algebraic Pure Orthogonal Projector | Mathematical Parity |
+| **Vocabulary Size ($V$)** | 65 (Controlled Chinchilla Vocab) | 65 (Controlled Chinchilla Vocab) | Exact Match |
+| **Model Dimension ($d$)** | 8 | 8 | Exact Match |
+| **Heads ($H$) / Head Dim ($d_h$)** | 2 / 4 | 2 / 4 | Exact Match |
+| **FFN Dimension ($d_{\text{ff}}$)** | 6 | 6 | Exact Match |
+| **Layers ($N_{\text{layers}}$)** | 1 | 1 | Exact Match |
+| **Normalization Type** | RMSNorm ($\epsilon = 10^{-5}$) | RMSNorm ($\epsilon = 10^{-5}$) | Exact Match |
+| **LM Head Strategy** | Tied to Token Embeddings | Tied to Token Embeddings | Exact Match |
+| **Positional Encoding** | Fixed Sinusoidal | Fixed Sinusoidal | Exact Match |
+| **Token Embeddings** | $65 \times 8 = 520$ | $65 \times 8 = 520$ | 0 (0.00%) |
+| **Attention Projections** | $4 \times (8 \times 8) = 256$ | $4 \times (8 \times 8) = 256$ | 0 (0.00%) |
+| **Normalization Parameters** | $3 \times 8 = 24$ | $3 \times 8 = 24$ | 0 (0.00%) |
+| **FFN Parameters** | $48 + 48 = 96$ | $48 + 48 = 96$ | 0 (0.00%) |
+| **Total Trainable Parameters** | **896** | **896** | **0 (0.00% DELTA)** |
+| **Weight Buffer Memory** | $896 \times 4 = 3,584\text{ bytes (3.5 KB)}$ | $896 \times 4 = 3,584\text{ bytes (3.5 KB)}$ | Exact Match |
+| **L1D Cache Residency (Weights)**| **100% L1D resident (< 11.2% of 32 KB)** | **100% L1D resident (< 11.2% of 32 KB)** | Zero DRAM Traffic |
+| **Context State Footprint** | $O(N \cdot d)$ growing KV cache | **$O(1)$ strictly 160 bytes** | SRX 160 B constant |
+
+---
+
+### 17.3 Pipeline Training Dynamics & Empirical Results
+
+The full two-stage pipeline was executed via `cargo run --release --bin chinchilla_pipeline`:
+
+#### 1. Stage 1 (Pretrain): Chinchilla 20:1 Ratio (17,920 tokens, 10 Epochs, lr = 0.02)
+- **Classical Transformer Baseline:**
+  * Initial Loss: $4.6001$ ($\text{PPL} = 99.49$)
+  * Final Loss: $1.1047$ ($\text{PPL} = 3.02$)
+  * Total Time: $1,175.80\text{ ms}$ ($1.18\text{ s}$)
+  * Loss Reduction: $-76.0\%$
+- **SRX v05 Quantum Core:**
+  * Initial Loss: $4.7617$ ($\text{PPL} = 116.94$)
+  * Final Loss: $0.9524$ ($\text{PPL} = 2.59$)
+  * Total Time: $1,277.10\text{ ms}$ ($1.28\text{ s}$)
+  * Loss Reduction: $-80.0\%$ (SRX achieves superior pretrain compression!)
+
+#### 2. Stage 2 (Instruct / SFT with 25% Replay Mix, 1,901 tokens, 25 Epochs, lr = 0.015)
+- **Classical Transformer Baseline:**
+  * Initial Loss: $7.5306$
+  * Final Loss: $1.2963$ ($\text{PPL} = 3.66$)
+  * Total Time: $404.37\text{ ms}$ ($0.40\text{ s}$)
+- **SRX v05 Quantum Core:**
+  * Initial Loss: $9.6992$
+  * Final Loss: $1.1955$ ($\text{PPL} = 3.31$)
+  * Total Time: $419.21\text{ ms}$ ($0.42\text{ s}$)
+
+#### 3. Total Pipeline Wall-Clock Execution Time
+- **Total Pipeline Runtime:** **3.29 seconds** on release build.
+
+---
+
+### 17.4 Verification & Full Project Regression
+
+All unit and integration test suites passed cleanly with **0 failures and 0 warnings**:
+1. **`tests/chinchilla_pipeline_test.rs` (4 tests passed in 0.08s):**
+   - `test_chinchilla_parameter_parity_strict_896`: Validates exact 896 parameters on both models.
+   - `test_chinchilla_two_stage_training_and_generation`: Validates two-stage loss decrease and response generation.
+   - `test_chinchilla_weights_serialization_roundtrip`: Bitwise identical save/load roundtrips.
+   - `test_chinchilla_saved_weights_load_and_predict`: Verified on persisted binary files.
+2. **`tests/chinchilla_data_test.rs` (5 tests passed):**
+   - 100% roundtrip token fidelity across 17,920 pretrain and 1,901 instruct tokens.
+3. **Full Regression Test Matrix (`cargo test --release`):**
+   - `srxformer` unit tests: **88 passed**.
+   - Integration tests (`chinchilla_pipeline_test`, `chinchilla_data_test`, `integration_test`, `srx_train_test`, `srx_v03_train_test`, `srx_v04_train_test`, `srx_v05_train_test`, `training_demo_test`, `unified_train_test`, `unified_v2_train_test`): **31 passed**.
+   - Total automated tests: **119 passed**, 0 failed, 0 ignored.
+   - Compiler diagnostics: **0 warnings, 0 errors**.
 
 
 

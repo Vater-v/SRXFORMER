@@ -8,6 +8,7 @@ use crate::classic::config::TransformerConfig;
 use crate::classic::ops::softmax;
 use crate::classic::telemetry::TrainTelemetry;
 use crate::classic::tokenizer::EOS_TOKEN_ID;
+use crate::classic::train::TrainMetrics;
 
 use super::attention::{SRX_ALPHA, SRX_W_MAX};
 use super::model::SrxTransformer;
@@ -1226,6 +1227,174 @@ pub fn train_dataset(
         total_steps,
         loss_history,
     }
+}
+
+/// Pretrains the SRX v05 model on tokenized dataset using exact analytical reversible BPTT and AdamW.
+pub fn train_pretrain(
+    model: &mut SrxTransformer,
+    tokens: &[usize],
+    epochs: usize,
+    lr: f32,
+) -> TrainMetrics {
+    let start_time = Instant::now();
+    let mut ws = SrxTrainWorkspace::new(&model.config);
+    let mut grad = SrxGrad::new(&model.config);
+    let mut optimizer = SrxAdamW::new(&model.config, 0.0);
+    let sequences = split_into_eos_sequences(tokens, model.config.max_seq_len);
+    assert!(!sequences.is_empty(), "Pretrain corpus has no valid sequences");
+
+    let mut loss_history = Vec::with_capacity(epochs);
+    let mut total_steps = 0;
+
+    let eval_count = sequences.len().min(20);
+    let mut initial_loss = 0.0f32;
+    for seq in &sequences[..eval_count] {
+        initial_loss += forward_loss(model, seq, &mut ws, 1.0);
+    }
+    initial_loss /= eval_count as f32;
+
+    let mut rng = crate::classic::FastRng::new(1234);
+
+    for epoch in 0..epochs {
+        let mut epoch_seqs = sequences.clone();
+        for i in (1..epoch_seqs.len()).rev() {
+            let j = (rng.next_u64() as usize) % (i + 1);
+            epoch_seqs.swap(i, j);
+        }
+
+        let progress = (epoch + 1) as f32 / epochs.max(1) as f32;
+        let eps_min = 1e-3f32;
+        let eps_max = 1.0f32;
+        let eps_srx = eps_min + (eps_max - eps_min) * (1.0 - progress).powi(2);
+        let current_lr = (lr * 0.5 * (1.0 + (progress * std::f32::consts::PI).cos())).max(lr * 0.1);
+
+        let mut epoch_loss = 0.0f32;
+        for seq in &epoch_seqs {
+            grad.zero();
+            let loss = forward_loss(model, seq, &mut ws, eps_srx);
+            epoch_loss += loss;
+            backward_loss(model, seq, &mut ws, &mut grad, eps_srx);
+            grad.clip_grad_norm(1.0);
+            optimizer.step(model, &grad, current_lr);
+            total_steps += 1;
+        }
+
+        let avg_epoch_loss = epoch_loss / epoch_seqs.len() as f32;
+        loss_history.push(avg_epoch_loss);
+    }
+
+    let final_loss = *loss_history.last().unwrap_or(&initial_loss);
+    let elapsed_ms = start_time.elapsed().as_secs_f64() * 1000.0;
+
+    TrainMetrics {
+        initial_loss,
+        final_loss,
+        loss_history,
+        elapsed_ms,
+        total_steps,
+    }
+}
+
+/// Fine-tunes the SRX v05 model on instruction dialogue tokens (SFT) with replay mix (20-30% basic facts)
+/// from the pretrain dataset to prevent catastrophic forgetting.
+pub fn train_instruct_with_replay(
+    model: &mut SrxTransformer,
+    instruct_tokens: &[usize],
+    replay_tokens: &[usize],
+    epochs: usize,
+    lr: f32,
+    replay_ratio: f32,
+) -> TrainMetrics {
+    let start_time = Instant::now();
+    let mut ws = SrxTrainWorkspace::new(&model.config);
+    let mut grad = SrxGrad::new(&model.config);
+    let mut optimizer = SrxAdamW::new(&model.config, 0.0);
+
+    let instruct_sequences = split_into_eos_sequences(instruct_tokens, model.config.max_seq_len);
+    assert!(!instruct_sequences.is_empty(), "Instruct corpus has no valid sequences");
+
+    let replay_sequences = if !replay_tokens.is_empty() && replay_ratio > 0.0 {
+        split_into_eos_sequences(replay_tokens, model.config.max_seq_len)
+    } else {
+        Vec::new()
+    };
+
+    let mut loss_history = Vec::with_capacity(epochs);
+    let mut total_steps = 0;
+
+    let eval_count = instruct_sequences.len().min(10);
+    let mut initial_loss = 0.0f32;
+    for seq in &instruct_sequences[..eval_count] {
+        initial_loss += forward_loss(model, seq, &mut ws, 1.0);
+    }
+    initial_loss /= eval_count as f32;
+
+    let mut rng = crate::classic::FastRng::new(5678);
+
+    let replay_count = if !replay_sequences.is_empty() && replay_ratio > 0.0 {
+        let n = ((instruct_sequences.len() as f32 * replay_ratio) / (1.0 - replay_ratio).max(0.01)).round() as usize;
+        n.max(1)
+    } else {
+        0
+    };
+
+    let mut replay_idx = 0;
+
+    for epoch in 0..epochs {
+        let mut epoch_sequences = instruct_sequences.clone();
+        if replay_count > 0 && !replay_sequences.is_empty() {
+            for _ in 0..replay_count {
+                epoch_sequences.push(replay_sequences[replay_idx % replay_sequences.len()].clone());
+                replay_idx += 1;
+            }
+        }
+
+        for i in (1..epoch_sequences.len()).rev() {
+            let j = (rng.next_u64() as usize) % (i + 1);
+            epoch_sequences.swap(i, j);
+        }
+
+        let progress = (epoch + 1) as f32 / epochs.max(1) as f32;
+        let eps_min = 1e-3f32;
+        let eps_max = 1.0f32;
+        let eps_srx = eps_min + (eps_max - eps_min) * (1.0 - progress).powi(2);
+        let current_lr = (lr * 0.5 * (1.0 + (progress * std::f32::consts::PI).cos())).max(lr * 0.1);
+
+        let mut epoch_loss = 0.0f32;
+        for seq in &epoch_sequences {
+            grad.zero();
+            let loss = forward_loss(model, seq, &mut ws, eps_srx);
+            epoch_loss += loss;
+            backward_loss(model, seq, &mut ws, &mut grad, eps_srx);
+            grad.clip_grad_norm(1.0);
+            optimizer.step(model, &grad, current_lr);
+            total_steps += 1;
+        }
+
+        let avg_epoch_loss = epoch_loss / epoch_sequences.len() as f32;
+        loss_history.push(avg_epoch_loss);
+    }
+
+    let final_loss = *loss_history.last().unwrap_or(&initial_loss);
+    let elapsed_ms = start_time.elapsed().as_secs_f64() * 1000.0;
+
+    TrainMetrics {
+        initial_loss,
+        final_loss,
+        loss_history,
+        elapsed_ms,
+        total_steps,
+    }
+}
+
+/// Convenience wrapper for standard instruction fine-tuning without replay.
+pub fn train_instruct(
+    model: &mut SrxTransformer,
+    tokens: &[usize],
+    epochs: usize,
+    lr: f32,
+) -> TrainMetrics {
+    train_instruct_with_replay(model, tokens, &[], epochs, lr, 0.0)
 }
 
 #[cfg(test)]

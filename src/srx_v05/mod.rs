@@ -41,6 +41,6 @@ pub use ops::{
 pub use state::{SrxState, SrxWorkspace};
 pub use telemetry::SrxTelemetryReport;
 pub use train::{
-    backward_loss, forward_loss, split_into_eos_sequences, train_dataset, SrxAdamW, SrxGrad,
-    SrxTrainWorkspace,
+    backward_loss, forward_loss, split_into_eos_sequences, train_dataset, train_instruct,
+    train_instruct_with_replay, train_pretrain, SrxAdamW, SrxGrad, SrxTrainWorkspace,
 };

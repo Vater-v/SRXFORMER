@@ -22,5 +22,6 @@ pub use tokenizer::{
 };
 pub use train::{
     backward_loss, forward_loss, split_into_eos_sequences, train_dataset, train_instruct,
-    train_pretrain, AdamW, TrainMetrics, TrainWorkspace, TransformerGrad,
+    train_instruct_with_replay, train_pretrain, AdamW, TrainMetrics, TrainWorkspace, TransformerGrad,
+    TwoStagePipelineResult,
 };
