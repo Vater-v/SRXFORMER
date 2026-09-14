@@ -5,10 +5,10 @@
 ================================================================================
 
 [1] TRAINING DYNAMICS & WALL-CLOCK THROUGHPUT:
-    * Total Tokens:          173575
-    * Epochs Completed:      0.04
-    * Decoding Speed:        86763.6 tokens/sec
-    * Final Train Loss:      5.5524 (PPL: 257.86)
+    * Total Tokens:          181637
+    * Epochs Completed:      0.05
+    * Decoding Speed:        90794.0 tokens/sec
+    * Final Train Loss:      5.5525 (PPL: 257.88)
     * Val Loss (Wikipedia):  5.5544 (PPL: 258.37)
 
 [2] TYPO & PERTURBATION ROBUSTNESS (100 Wikipedia Pairs):
@@ -27,5 +27,5 @@
     65536    | 4096.0 KB    | L3 Cache (256 KB - 20 MB, Shared Bus) | 3237.28  µs | 2.02   µs | 1602.61x
 
 [4] PERIODIC TELEMETRY CHECKPOINTS:
-    t=  1.0s | tokens=  89122 | loss=5.5524 | speed=89117.7 tok/s | GFLOP/s=2.44
-    t=  2.0s | tokens= 173575 | loss=5.5524 | speed=86764.1 tok/s | GFLOP/s=2.38
+    t=  1.0s | tokens=  90826 | loss=5.5524 | speed=90799.0 tok/s | GFLOP/s=2.49
+    t=  2.0s | tokens= 181637 | loss=5.5525 | speed=90794.6 tok/s | GFLOP/s=2.49

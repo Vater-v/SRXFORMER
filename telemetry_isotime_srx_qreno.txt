@@ -5,9 +5,9 @@
 ================================================================================
 
 [1] TRAINING DYNAMICS & WALL-CLOCK THROUGHPUT:
-    * Total Tokens:          1102979
+    * Total Tokens:          1107371
     * Epochs Completed:      0.27
-    * Decoding Speed:        551474.4 tokens/sec
+    * Decoding Speed:        553647.4 tokens/sec
     * Final Train Loss:      5.5878 (PPL: 267.15)
     * Val Loss (Wikipedia):  5.5876 (PPL: 267.09)
 
@@ -27,4 +27,4 @@
     65536    | 4096.0 KB    | L3 Cache (256 KB - 20 MB, Shared Bus) | 3237.28  µs | 2.02   µs | 1602.61x
 
 [4] PERIODIC TELEMETRY CHECKPOINTS:
-    t=  1.0s | tokens= 551202 | loss=5.5875 | speed=551150.8 tok/s | GFLOP/s=23.81
+    t=  1.0s | tokens= 554210 | loss=5.5876 | speed=554126.7 tok/s | GFLOP/s=23.94
