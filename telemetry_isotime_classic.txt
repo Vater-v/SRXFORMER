@@ -5,15 +5,15 @@
 ================================================================================
 
 [1] TRAINING DYNAMICS & WALL-CLOCK THROUGHPUT:
-    * Total Tokens:          98243
+    * Total Tokens:          79747
     * Epochs Completed:      0.02
-    * Decoding Speed:        49069.6 tokens/sec
-    * Final Train Loss:      3.1404 (PPL: 23.11)
-    * Val Loss (Wikipedia):  1.6682 (PPL: 5.30)
+    * Decoding Speed:        39836.5 tokens/sec
+    * Final Train Loss:      3.3802 (PPL: 29.38)
+    * Val Loss (Wikipedia):  1.7073 (PPL: 5.51)
 
 [2] TYPO & PERTURBATION ROBUSTNESS (100 Wikipedia Pairs):
     * Mean Cosine Similarity: 0.9998
-    * Mean Delta Loss:        0.0067
+    * Mean Delta Loss:        0.0070
 
 [3] THE MEMORY WALL CHALLENGE (Context Scaling):
     N        | Classic KV   | Classic Cache Tier        | Classic Lat  | SRX Lat    | Speedup   
@@ -27,17 +27,17 @@
     65536    | 4096.0 KB    | L3 Cache (256 KB - 20 MB, Shared Bus) | 3237.28  µs | 2.02   µs | 1602.61x
 
 [4] PERIODIC TELEMETRY CHECKPOINTS:
-    t=  1.0s | tokens=  48026 | loss=3.1404 | speed=47730.7 tok/s | GFLOP/s=1.31
+    t=  1.0s | tokens=  39546 | loss=3.3802 | speed=39343.2 tok/s | GFLOP/s=1.08
 
 [5] LEARNED SKILLS EVALUATION & QUALITATIVE GENERATIONS:
-    [Term Autocompletion ] Prompt: "матем"            | Output: "иииии"                | Expected: "атика"      | Match: false
-    [Term Autocompletion ] Prompt: "логи"             | Output: "иииии"                | Expected: "ка"         | Match: false
-    [Term Autocompletion ] Prompt: "нау"              | Output: "иииии"                | Expected: "ка"         | Match: false
-    [Term Autocompletion ] Prompt: "теор"             | Output: "оооии"                | Expected: "ия"         | Match: false
-    [Term Autocompletion ] Prompt: "модел"            | Output: "иииии"                | Expected: "ь"          | Match: false
-    [Phrase Continuation ] Prompt: "математика это "  | Output: "ииииииииии"           | Expected: "valid continuation" | Match: true
-    [Phrase Continuation ] Prompt: "логика это "      | Output: "ииииииииии"           | Expected: "valid continuation" | Match: true
-    [Phrase Continuation ] Prompt: "наука это "       | Output: "ииииииииии"           | Expected: "valid continuation" | Match: true
-    [Basic Arithmetic    ] Prompt: "2 + 2 = "         | Output: "ии�"                  | Expected: "4"          | Match: false
-    [Basic Arithmetic    ] Prompt: "1 + 1 = "         | Output: "ии�"                  | Expected: "2"          | Match: false
-    [Typo Invariance     ] Prompt: "математка это "   | Output: "ииииииииии"           | Expected: "robust continuation" | Match: true
+    [Term Autocompletion ] Prompt: "матем"            | Output: "ооооо"                | Expected: "атика"      | Match: false
+    [Term Autocompletion ] Prompt: "логи"             | Output: "ооооо"                | Expected: "ка"         | Match: false
+    [Term Autocompletion ] Prompt: "нау"              | Output: "ооооо"                | Expected: "ка"         | Match: false
+    [Term Autocompletion ] Prompt: "теор"             | Output: "ооооо"                | Expected: "ия"         | Match: false
+    [Term Autocompletion ] Prompt: "модел"            | Output: "ооооо"                | Expected: "ь"          | Match: false
+    [Phrase Continuation ] Prompt: "математика это "  | Output: "оооооооооо"           | Expected: "valid continuation" | Match: true
+    [Phrase Continuation ] Prompt: "логика это "      | Output: "оооооооооо"           | Expected: "valid continuation" | Match: true
+    [Phrase Continuation ] Prompt: "наука это "       | Output: "оооооооооо"           | Expected: "valid continuation" | Match: true
+    [Basic Arithmetic    ] Prompt: "2 + 2 = "         | Output: "оо�"                  | Expected: "4"          | Match: false
+    [Basic Arithmetic    ] Prompt: "1 + 1 = "         | Output: "оо�"                  | Expected: "2"          | Match: false
+    [Typo Invariance     ] Prompt: "математка это "   | Output: "оооооооооо"           | Expected: "robust continuation" | Match: true

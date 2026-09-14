@@ -24,5 +24,5 @@ pub use config::{ScaledConfig, ScalingCalculator, Tier};
 pub use generator::{apply_repetition_penalty, sample_token, FastRng, SamplingConfig};
 pub use nn::{AutoregressiveModel, Module, ScaledAdamW, ScaledFFN, ScaledLinear, ScaledRMSNorm};
 pub use qreno_srx::QrenoSrxLM;
-pub use srx::{ScaledSrxAttention, ScaledSrxState, ScaledSrxTransformer, ScaledWorkspace};
+pub use srx::{ScaledSequenceWorkspace, ScaledSrxAttention, ScaledSrxState, ScaledSrxTransformer, ScaledWorkspace};
 

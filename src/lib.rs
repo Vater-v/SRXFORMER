@@ -19,8 +19,8 @@ pub mod srx_v05;
 pub use scaled::{
     AutoregressiveModel, Module, QrenoSrxLM, ScaledAdamW, ScaledClassicAttention, ScaledClassicKvCache,
     ScaledClassicTransformer, ScaledConfig, ScaledFFN, ScaledLinear, ScaledRMSNorm,
-    ScaledSrxAttention, ScaledSrxState, ScaledSrxTransformer, ScaledWorkspace, ScalingCalculator,
-    Tier,
+    ScaledSrxAttention, ScaledSrxState, ScaledSrxTransformer, ScaledWorkspace, ScaledSequenceWorkspace,
+    ScalingCalculator, Tier,
 };
 
 // Re-export Q-RENO module

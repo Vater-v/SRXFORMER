@@ -557,3 +557,28 @@ cargo test --release
 | **2,048** | $262\,144\text{ Б}$ | **$320\text{ Б}$** | **819.2x** | **L1D Cache** |
 
 * Отчет сохраняется в `telemetry_long_context.txt`.
+
+---
+
+## 14. Обратимый аналитический Sequence BPTT и точное воспроизведение русской речи
+
+### 14.1 Решение проблемы кредитования во времени (Sequence BPTT)
+Пошаговое обновление весов онлайн-оптимизатором обнуляло кредитную историю градиентов по времени, приводя к плато Loss $\approx 1.25$ и анаграммному шуму (`результат` $\to$ `ерита`).
+В `ScaledSrxTransformer` реализован точный обратный проход по времени (Reverse-Time Adjoint BPTT):
+* Полная трассировка промежуточных состояний: унитарные матрицы Monarch Butterfly $U(\Theta_t)$, селектор MUSIC $w(q_t)$, вектор памяти $M_t$.
+* Обратный проход от $t=T-1$ до $0$ без усечений:
+  $$\frac{\partial \mathcal{L}}{\partial M_t} = q_{\text{rot}, t} \left( w(q_t) \frac{\partial \mathcal{L}}{\partial y_t} \right)^T + \frac{\partial \mathcal{L}}{\partial M_{t+1}}$$
+  $$\frac{\partial \mathcal{L}}{\partial \Theta_t} = \text{Adjoint}_{\text{Butterfly}}(q_t, k_t) + \frac{\partial \mathcal{L}}{\partial \Theta_{t+1}}$$
+* Сквозной градиент через спектральный токенизатор Q-RENO.
+
+### 14.2 Результаты теста запоминания русского фольклора (`tests/sanity_overfit_test.rs`)
+Обучение модели `Tier::Pro` ($d=32, H=8$, 640 байт состояния в L1D кэше):
+* **Loss упал с 5.27 до 0.0266 (PPL = 1.027) за 276 эпох (6.17 секунды на CPU)!**
+* **100% Exact Match при жадной генерации ($T=0$):**
+  1. `<user> хочешь сей а хочешь куй все равно получишь <bot>` $\to$ **` результат <eos>`** [PASS]
+  2. `<user> делу время <bot>` $\to$ **` потехе час <eos>`** [PASS]
+  3. `<user> без труда не выловишь <bot>` $\to$ **` рыбку из пруда <eos>`** [PASS]
+  4. `<user> терпенье и труд <bot>` $\to$ **` все перетрут <eos>`** [PASS]
+  5. `<user> семь раз отмерь <bot>` $\to$ **` один раз отрежь <eos>`** [PASS]
+* Полная ликвидация биграммных петель (`"еееее"`) и анаграммного мусора (`"ерита"`).
+* Запуск: `cargo test --release --test sanity_overfit_test test_sanity_overfit_russian_folklore -- --nocapture`
