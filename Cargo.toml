@@ -36,6 +36,10 @@ path = "src/bin/prepare_chinchilla_data.rs"
 name = "chinchilla_pipeline"
 path = "src/bin/chinchilla_pipeline.rs"
 
+[[bin]]
+name = "chinchilla_bench"
+path = "src/bin/chinchilla_bench.rs"
+
 [profile.release]
 opt-level = 3
 lto = true

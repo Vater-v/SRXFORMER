@@ -113,12 +113,13 @@ impl AttentionWorkspace {
         let max_seq_len = config.max_seq_len;
         let d_model = config.d_model;
         let n_heads = config.n_heads;
+        let seq_scores_len = n_heads * max_seq_len.min(1024) * max_seq_len.min(1024);
 
         Self {
             q: vec![0.0; max_seq_len * d_model],
             k: vec![0.0; max_seq_len * d_model],
             v: vec![0.0; max_seq_len * d_model],
-            attn_scores: vec![0.0; n_heads * max_seq_len * max_seq_len],
+            attn_scores: vec![0.0; seq_scores_len],
             attn_out: vec![0.0; max_seq_len * d_model],
 
             step_q: vec![0.0; d_model],

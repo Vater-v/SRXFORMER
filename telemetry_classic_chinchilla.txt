@@ -1,0 +1,93 @@
+================================================================================
+ SRXFORMER: CLASSICAL TRANSFORMER (BASELINE) COMPUTE / LATENCY / QUALITY TELEMETRY REPORT
+ Target Architecture: Intel Xeon E5-2650 v2 (Ivy Bridge-EP)                     
+ Model Parameters:    896 (100% L1D Cache Resident, 32 KB per core)             
+================================================================================
+
+[1] ВЛОЖЕННЫЙ COMPUTE НА ОБУЧЕНИЕ (TRAINING COMPUTE):
+    * Вложили compute:          2584877568 FLOPs (2584.88 MFLOPs / 2.5849 GFLOPs)
+    * Время обучения:           2630.57 ms (2.631 s)
+    * Формула FLOPs:            6 * N_params * tokens_per_epoch * epochs
+                                = 6 * 896 * 19821 * 70
+    * Эффективная скорость:     982.63 MFLOP/s (0.9826 GFLOP/s)
+    * Начальный Loss:           4.6001 (Перплексия: 99.49)
+    * Финальный Loss:           1.2600 (Перплексия: 3.53)
+    * Всего шагов (Steps):      67670 gradient updates
+
+[2] COMPUTE И ЛАТЕНТНОСТЬ НА ИНФЕРЕНСЕ (INFERENCE COMPUTE & LATENCY):
+    * Ответ за compute:         1792 FLOPs на токен (~ 2 * N_params)
+    * Время генерации токена:   2069.6 ns (2.070 µs)
+    * Пропускная способность:   483189 токенов/сек (0.48M токенов/сек)
+    * Вычислительная скорость:  0.8659 GFLOP/s
+    * Число бенчмарк шагов:     50000 tokens decoded
+
+[3] КАЧЕСТВО МОДЕЛИ (QUALITY EVALUATION - EXACT MATCH):
+    * Точность (Exact Match):   18.3% (11/60 тестов пройдено)
+    --------------------------------------------------------------------------------------------------------------------
+    | Категория                | Статус | Промпт                    | Сгенерировано        | Ожидалось            |
+    --------------------------------------------------------------------------------------------------------------------
+    | Addition Arithmetic (Basic) | FAIL   | <user> 2 + 3 = <bot>      | 4 <eos>              | 5 <eos>              |
+    | Addition Arithmetic (Basic) | FAIL   | <user> 1 + 2 = <bot>      | 0 <eos>              | 3 <eos>              |
+    | Addition Arithmetic (Basic) | FAIL   | <user> 0 + 1 = <bot>      | 0 <eos>              | 1 <eos>              |
+    | Addition Arithmetic (Basic) | PASS   | <user> 2 + 2 = <bot>      | 4 <eos>              | 4 <eos>              |
+    | Addition Arithmetic (Basic) | FAIL   | <user> 3 + 1 = <bot>      | 6 <eos>              | 4 <eos>              |
+    | Addition Arithmetic (Extended) | FAIL   | <user> 3 + 4 = <bot>      | 6 <eos>              | 7 <eos>              |
+    | Addition Arithmetic (Extended) | PASS   | <user> 5 + 3 = <bot>      | 8 <eos>              | 8 <eos>              |
+    | Addition Arithmetic (Extended) | FAIL   | <user> 4 + 5 = <bot>      | 8 <eos>              | 9 <eos>              |
+    | Addition Arithmetic (Base Prompt) | FAIL   | 2 + 3 =                   | 0 = нет <eos>        | 5 <eos>              |
+    | Addition Arithmetic (Base Prompt) | FAIL   | 3 + 4 =                   | 4 = нет <eos>        | 7 <eos>              |
+    | Subtraction (Pair A: 5 - 2) | FAIL   | <user> 5 - 2 = <bot>      | 0 <eos>              | 3 <eos>              |
+    | Subtraction (Pair A: 5 - 3) | FAIL   | <user> 5 - 3 = <bot>      | 0 <eos>              | 2 <eos>              |
+    | Subtraction (Pair B: 4 - 1) | FAIL   | <user> 4 - 1 = <bot>      | 0 <eos>              | 3 <eos>              |
+    | Subtraction (Pair B: 4 - 3) | FAIL   | <user> 4 - 3 = <bot>      | 0 <eos>              | 1 <eos>              |
+    | Subtraction (Pair C: 9 - 4) | FAIL   | <user> 9 - 4 = <bot>      | 4 <eos>              | 5 <eos>              |
+    | Subtraction (Pair C: 9 - 5) | PASS   | <user> 9 - 5 = <bot>      | 4 <eos>              | 4 <eos>              |
+    | Subtraction (Pair D: 3 - 1) | FAIL   | <user> 3 - 1 = <bot>      | 0 <eos>              | 2 <eos>              |
+    | Subtraction (Pair D: 3 - 2) | FAIL   | <user> 3 - 2 = <bot>      | 0 <eos>              | 1 <eos>              |
+    | Subtraction (Base Prompt: 4 - 1) | FAIL   | 4 - 1 =                   | 0 = нет <eos>        | 3 <eos>              |
+    | Subtraction (Base Prompt: 5 - 2) | FAIL   | 5 - 2 =                   | 0 = нет <eos>        | 3 <eos>              |
+    | Multiplication Arithmetic (Basic) | FAIL   | <user> 2 * 3 = <bot>      | 0 <eos>              | 6 <eos>              |
+    | Multiplication Arithmetic (Basic) | FAIL   | <user> 2 * 2 = <bot>      | 0 <eos>              | 4 <eos>              |
+    | Multiplication Arithmetic (Basic) | FAIL   | <user> 3 * 3 = <bot>      | 0 <eos>              | 9 <eos>              |
+    | Multiplication Arithmetic (Extended) | FAIL   | <user> 4 * 2 = <bot>      | 6 <eos>              | 8 <eos>              |
+    | Division Arithmetic (Exact) | FAIL   | <user> 6 / 2 = <bot>      | 0 <eos>              | 3 <eos>              |
+    | Division Arithmetic (Exact) | FAIL   | <user> 8 / 4 = <bot>      | 0 <eos>              | 2 <eos>              |
+    | Division Arithmetic (Exact) | FAIL   | <user> 9 / 3 = <bot>      | 0 <eos>              | 3 <eos>              |
+    | Division Arithmetic (Exact) | FAIL   | <user> 4 / 2 = <bot>      | 0 <eos>              | 2 <eos>              |
+    | Multiplication Arithmetic (Base Prompt) | FAIL   | 2 * 3 =                   | 0 = нет <eos>        | 6 <eos>              |
+    | Division Arithmetic (Base Prompt) | FAIL   | 6 / 2 =                   | 0 = нет <eos>        | 3 <eos>              |
+    | Entity Taxonomy (кот)    | FAIL   | <user> кто кот <bot>      | волк это хищник <eos> | кот это животное <eos> |
+    | Entity Taxonomy (пес)    | FAIL   | <user> кто пес <bot>      | волк это хищник <eos> | пес это друг <eos>   |
+    | Entity Taxonomy (волк)   | FAIL   | <user> кто волк <bot>     | волк это хищник <eos> | волк это зверь <eos> |
+    | Entity Taxonomy (лиса)   | FAIL   | <user> кто лиса <bot>     | рыба это хищник <eos> | лиса это хищник <eos> |
+    | Entity Taxonomy (медведь) | FAIL   | <user> кто медведь <bot>  | волк это хищник <eos> | медведь это зверь <eos> |
+    | Entity Taxonomy (щука)   | FAIL   | <user> кто щука <bot>     | волк это хищник <eos> | щука это рыба <eos>  |
+    | Entity Taxonomy (змея)   | FAIL   | <user> кто змея <bot>     | рыба это хищник <eos> | змея это хищник <eos> |
+    | Entity Taxonomy (дуб)    | FAIL   | <user> кто дуб <bot>      | волк это хищник <eos> | дуб это дерево <eos> |
+    | Entity Taxonomy (Base Prompt) | FAIL   | кто кот =                 | <bot> трава <eos>    | кот это животное <eos> |
+    | Entity Taxonomy (Base Prompt) | FAIL   | кто медведь =             | <bot> трава <eos>    | медведь это зверь <eos> |
+    | Spatial Reasoning (волк) | FAIL   | <user> где волк <bot>     | дом <eos>            | лес <eos>            |
+    | Spatial Reasoning (рыба) | FAIL   | <user> где рыба <bot>     | дом <eos>            | река <eos>           |
+    | Spatial Reasoning (кот)  | PASS   | <user> где кот <bot>      | дом <eos>            | дом <eos>            |
+    | Spatial Reasoning (птица) | FAIL   | <user> где птица <bot>    | нора <eos>           | небо <eos>           |
+    | Spatial Reasoning (медведь) | FAIL   | <user> где медведь <bot>  | дом <eos>            | тайга <eos>          |
+    | Spatial Reasoning (щука) | FAIL   | <user> где щука <bot>     | дом <eos>            | вода <eos>           |
+    | Spatial Reasoning (змея) | PASS   | <user> где змея <bot>     | нора <eos>           | нора <eos>           |
+    | Spatial Reasoning (заяц) | FAIL   | <user> где заяц <bot>     | дом <eos>            | поле <eos>           |
+    | Spatial Reasoning (Base Prompt) | FAIL   | где рыба =                | дом <eos>            | река <eos>           |
+    | Spatial Reasoning (Base Prompt) | FAIL   | где медведь =             | дом <eos>            | тайга <eos>          |
+    | Boolean Logic (Negation) | FAIL   | <user> кот это пес <bot>  | да <eos>             | нет <eos>            |
+    | Boolean Logic (Affirmation) | PASS   | <user> кот это животное <bot> | да <eos>             | да <eos>             |
+    | Boolean Logic (Negation) | FAIL   | <user> медведь это рыба <bot> | да <eos>             | нет <eos>            |
+    | Boolean Logic (Affirmation) | PASS   | <user> щука это рыба <bot> | да <eos>             | да <eos>             |
+    | Boolean Logic (Implication) | PASS   | <user> если волк ест заяц то волк хищник <bot> | да <eos>             | да <eos>             |
+    | Boolean Logic (Negative Implication) | FAIL   | <user> если заяц ест волк <bot> | да <eos>             | нет <eos>            |
+    | Food Chain Predicate (Affirmation) | PASS   | <user> волк ест заяц <bot> | да <eos>             | да <eos>             |
+    | Food Chain Predicate (Negation) | FAIL   | <user> заяц ест волк <bot> | да <eos>             | нет <eos>            |
+    | Transitivity Chain (Food Chain) | PASS   | <user> волк ест заяц заяц ест трава <bot> | да <eos>             | да <eos>             |
+    | Transitivity Chain (Food Chain) | PASS   | <user> щука ест рыба рыба ест трава <bot> | да <eos>             | да <eos>             |
+    --------------------------------------------------------------------------------------------------------------------
+
+================================================================================
+ SRXFORMER TELEMETRY VERIFICATION: ALL METRICS RECORDED SUCCESSFULLY!           
+================================================================================

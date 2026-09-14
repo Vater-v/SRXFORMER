@@ -108,6 +108,10 @@ impl MultiHeadAttention {
         );
 
         // 2. Multi-Head Attention computation with Causal Mask
+        let needed_scores = n_heads * seq_len * seq_len;
+        if workspace.attn_scores.len() < needed_scores {
+            workspace.attn_scores.resize(needed_scores, 0.0);
+        }
         for h in 0..n_heads {
             let head_offset = h * head_dim;
 
