@@ -8,11 +8,20 @@
 
 pub mod classic;
 pub mod qreno;
+pub mod scaled;
 pub mod srx_v01;
 pub mod srx_v02;
 pub mod srx_v03;
 pub mod srx_v04;
 pub mod srx_v05;
+
+// Re-export Scaled architecture module
+pub use scaled::{
+    AutoregressiveModel, Module, QrenoSrxLM, ScaledClassicAttention, ScaledClassicKvCache,
+    ScaledClassicTransformer, ScaledConfig, ScaledFFN, ScaledLinear, ScaledRMSNorm,
+    ScaledSrxAttention, ScaledSrxState, ScaledSrxTransformer, ScaledWorkspace, ScalingCalculator,
+    Tier,
+};
 
 // Re-export Q-RENO module
 pub use qreno::{
