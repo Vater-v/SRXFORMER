@@ -17,7 +17,7 @@ pub mod srx_v05;
 
 // Re-export Scaled architecture module
 pub use scaled::{
-    AutoregressiveModel, Module, QrenoSrxLM, ScaledClassicAttention, ScaledClassicKvCache,
+    AutoregressiveModel, Module, QrenoSrxLM, ScaledAdamW, ScaledClassicAttention, ScaledClassicKvCache,
     ScaledClassicTransformer, ScaledConfig, ScaledFFN, ScaledLinear, ScaledRMSNorm,
     ScaledSrxAttention, ScaledSrxState, ScaledSrxTransformer, ScaledWorkspace, ScalingCalculator,
     Tier,

@@ -1,0 +1,30 @@
+================================================================================
+  SRXFORMER WALL-CLOCK ISO-TIME BENCHMARK TELEMETRY REPORT
+  Model:               QrenoSrxLM
+  Wall-Clock Duration: 2.00 seconds (0.03 minutes)
+================================================================================
+
+[1] TRAINING DYNAMICS & WALL-CLOCK THROUGHPUT:
+    * Total Tokens:          1102979
+    * Epochs Completed:      0.27
+    * Decoding Speed:        551474.4 tokens/sec
+    * Final Train Loss:      5.5878 (PPL: 267.15)
+    * Val Loss (Wikipedia):  5.5876 (PPL: 267.09)
+
+[2] TYPO & PERTURBATION ROBUSTNESS (100 Wikipedia Pairs):
+    * Mean Cosine Similarity: 0.9954
+    * Mean Delta Loss:        0.0022
+
+[3] THE MEMORY WALL CHALLENGE (Context Scaling):
+    N        | Classic KV   | Classic Cache Tier        | Classic Lat  | SRX Lat    | Speedup   
+    -------------------------------------------------------------------------------------
+    32       | 2.0 KB       | L1D Cache (<= 32 KB, Resident) | 2.83     µs | 2.00   µs | 1.42  x
+    128      | 8.0 KB       | L1D Cache (<= 32 KB, Resident) | 7.60     µs | 2.00   µs | 3.81  x
+    512      | 32.0 KB      | L1D Cache (<= 32 KB, Resident) | 26.51    µs | 2.00   µs | 13.28 x
+    1024     | 64.0 KB      | L2 Cache (32 KB - 256 KB, Spill) | 51.86    µs | 2.00   µs | 25.98 x
+    4096     | 256.0 KB     | L2 Cache (32 KB - 256 KB, Spill) | 203.50   µs | 2.00   µs | 101.95x
+    16384    | 1024.0 KB    | L3 Cache (256 KB - 20 MB, Shared Bus) | 810.83   µs | 2.00   µs | 404.40x
+    65536    | 4096.0 KB    | L3 Cache (256 KB - 20 MB, Shared Bus) | 3237.28  µs | 2.02   µs | 1602.61x
+
+[4] PERIODIC TELEMETRY CHECKPOINTS:
+    t=  1.0s | tokens= 551202 | loss=5.5875 | speed=551150.8 tok/s | GFLOP/s=23.81

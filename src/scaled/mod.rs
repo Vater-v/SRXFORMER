@@ -7,14 +7,19 @@
 //! - **Parity Classical Baseline** ([`classic`]): `ScaledClassicTransformer` with KV-cache.
 //! - **End-to-End Quantum LM** ([`qreno_srx`]): `QrenoSrxLM` integrating Q-RENO field frontend with Scaled SRX.
 
+pub mod bench;
 pub mod classic;
 pub mod config;
 pub mod nn;
 pub mod qreno_srx;
 pub mod srx;
 
+pub use bench::{
+    load_corpus_lines, load_typo_pairs, run_isotime_benchmark, run_memory_wall_challenge,
+    CheckpointRecord, IsoTimeConfig, MemoryWallPoint, ModelBenchmarkResult, TypoEvalResult,
+};
 pub use classic::{ScaledClassicAttention, ScaledClassicKvCache, ScaledClassicTransformer};
 pub use config::{ScaledConfig, ScalingCalculator, Tier};
-pub use nn::{AutoregressiveModel, Module, ScaledFFN, ScaledLinear, ScaledRMSNorm};
+pub use nn::{AutoregressiveModel, Module, ScaledAdamW, ScaledFFN, ScaledLinear, ScaledRMSNorm};
 pub use qreno_srx::QrenoSrxLM;
 pub use srx::{ScaledSrxAttention, ScaledSrxState, ScaledSrxTransformer, ScaledWorkspace};

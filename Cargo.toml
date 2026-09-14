@@ -40,6 +40,10 @@ path = "src/bin/chinchilla_pipeline.rs"
 name = "chinchilla_bench"
 path = "src/bin/chinchilla_bench.rs"
 
+[[bin]]
+name = "isotime_wiki_bench"
+path = "src/bin/isotime_wiki_bench.rs"
+
 [profile.release]
 opt-level = 3
 lto = true

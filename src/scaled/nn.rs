@@ -223,3 +223,59 @@ impl Module for ScaledFFN {
         self.w2.zero_grad();
     }
 }
+
+/// AdamW optimizer maintaining first and second moments for flat parameter vectors.
+#[derive(Debug, Clone)]
+pub struct ScaledAdamW {
+    pub lr: f32,
+    pub beta1: f32,
+    pub beta2: f32,
+    pub eps: f32,
+    pub weight_decay: f32,
+    pub step: usize,
+    pub m: Vec<f32>,
+    pub v: Vec<f32>,
+}
+
+impl ScaledAdamW {
+    pub fn new(param_count: usize, lr: f32, weight_decay: f32) -> Self {
+        Self {
+            lr,
+            beta1: 0.9,
+            beta2: 0.999,
+            eps: 1e-8,
+            weight_decay,
+            step: 0,
+            m: vec![0.0f32; param_count],
+            v: vec![0.0f32; param_count],
+        }
+    }
+
+    /// Performs one AdamW optimization update step on a slice of weights and gradients.
+    #[inline(always)]
+    pub fn step(&mut self, weights: &mut [f32], grads: &[f32]) {
+        debug_assert_eq!(weights.len(), grads.len());
+        debug_assert_eq!(weights.len(), self.m.len());
+
+        self.step += 1;
+        let beta1 = self.beta1;
+        let beta2 = self.beta2;
+        let eps = self.eps;
+        let wd = self.weight_decay;
+        let lr = self.lr;
+
+        let bias_correction1 = 1.0 - beta1.powi(self.step as i32);
+        let bias_correction2 = 1.0 - beta2.powi(self.step as i32);
+        let step_size = lr * (bias_correction2.sqrt() / bias_correction1);
+
+        for i in 0..weights.len() {
+            let g = grads[i];
+            let p = &mut weights[i];
+            *p -= lr * wd * *p;
+            self.m[i] = beta1 * self.m[i] + (1.0 - beta1) * g;
+            self.v[i] = beta2 * self.v[i] + (1.0 - beta2) * g * g;
+            let denom = self.v[i].sqrt() + eps;
+            *p -= step_size * (self.m[i] / denom);
+        }
+    }
+}
