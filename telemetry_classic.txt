@@ -1,0 +1,43 @@
+================================================================================
+ SRXFORMER: CLASSICAL TRANSFORMER (BASELINE) COMPUTE / LATENCY / QUALITY TELEMETRY REPORT
+ Target Architecture: Intel Xeon E5-2650 v2 (Ivy Bridge-EP)                     
+ Model Parameters:    512 (100% L1D Cache Resident, 32 KB per core)             
+================================================================================
+
+[1] ВЛОЖЕННЫЙ COMPUTE НА ОБУЧЕНИЕ (TRAINING COMPUTE):
+    * Вложили compute:          361267200 FLOPs (361.27 MFLOPs / 0.3613 GFLOPs)
+    * Время обучения:           401.63 ms (0.402 s)
+    * Формула FLOPs:            6 * N_params * tokens_per_epoch * epochs
+                                = 6 * 512 * 980 * 120
+    * Эффективная скорость:     899.50 MFLOP/s (0.8995 GFLOP/s)
+    * Начальный Loss:           3.2229 (Перплексия: 25.10)
+    * Финальный Loss:           0.7253 (Перплексия: 2.07)
+    * Всего шагов (Steps):      17520 gradient updates
+
+[2] COMPUTE И ЛАТЕНТНОСТЬ НА ИНФЕРЕНСЕ (INFERENCE COMPUTE & LATENCY):
+    * Ответ за compute:         1024 FLOPs на токен (~ 2 * N_params)
+    * Время генерации токена:   1628.0 ns (1.628 µs)
+    * Пропускная способность:   614261 токенов/сек (0.61M токенов/сек)
+    * Вычислительная скорость:  0.6290 GFLOP/s
+    * Число бенчмарк шагов:     50000 tokens decoded
+
+[3] КАЧЕСТВО МОДЕЛИ (QUALITY EVALUATION - EXACT MATCH):
+    * Точность (Exact Match):   70.0% (7/10 тестов пройдено)
+    --------------------------------------------------------------------------------------------------------------------
+    | Категория                | Статус | Промпт                    | Сгенерировано        | Ожидалось            |
+    --------------------------------------------------------------------------------------------------------------------
+    | Addition Arithmetic      | PASS   | <user> 2 + 3 = <bot>      | 5 <eos>              | 5 <eos>              |
+    | Addition Arithmetic      | PASS   | <user> 1 + 2 = <bot>      | 3 <eos>              | 3 <eos>              |
+    | Subtraction Arithmetic   | FAIL   | <user> 4 - 1 = <bot>      | 1 <eos>              | 3 <eos>              |
+    | Entity Fact / Definition | PASS   | <user> кто кот <bot>      | кот это животное <eos> | кот это животное <eos> |
+    | Entity Fact / Definition | FAIL   | <user> кто пес <bot>      | кот это животное <eos> | пес это друг <eos>   |
+    | Boolean Logic Negation   | PASS   | <user> кот это пес <bot>  | нет <eos>            | нет <eos>            |
+    | Boolean Logic Affirmation | PASS   | <user> кот это животное <bot> | да <eos>             | да <eos>             |
+    | Base Addition Formulation | PASS   | 2 + 3 =                   | 5 <eos>              | 5 <eos>              |
+    | Base Subtraction Formulation | FAIL   | 4 - 1 =                   | 1 <eos>              | 3 <eos>              |
+    | Base Logic Formulation   | PASS   | кот это пес =             | нет <eos>            | нет <eos>            |
+    --------------------------------------------------------------------------------------------------------------------
+
+================================================================================
+ SRXFORMER TELEMETRY VERIFICATION: ALL METRICS RECORDED SUCCESSFULLY!           
+================================================================================
