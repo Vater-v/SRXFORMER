@@ -323,4 +323,150 @@ impl ScaledSrxTransformer {
             + self.norm_final.param_count()
             + self.lm_head.param_count()
     }
+
+    /// Returns mutable slice references to all 11 parameter and gradient layers for AdamW.
+    pub fn get_layers_mut(&mut self) -> [(&mut [f32], &mut [f32]); 11] {
+        [
+            (&mut self.embed.weight[..], &mut self.embed.grad[..]),
+            (&mut self.norm_attn.weight[..], &mut self.norm_attn.grad[..]),
+            (&mut self.attn.w_q.weight[..], &mut self.attn.w_q.grad[..]),
+            (&mut self.attn.w_k.weight[..], &mut self.attn.w_k.grad[..]),
+            (&mut self.attn.w_v.weight[..], &mut self.attn.w_v.grad[..]),
+            (&mut self.attn.w_o.weight[..], &mut self.attn.w_o.grad[..]),
+            (&mut self.norm_ffn.weight[..], &mut self.norm_ffn.grad[..]),
+            (&mut self.ffn.w1.weight[..], &mut self.ffn.w1.grad[..]),
+            (&mut self.ffn.w2.weight[..], &mut self.ffn.w2.grad[..]),
+            (&mut self.norm_final.weight[..], &mut self.norm_final.grad[..]),
+            (&mut self.lm_head.weight[..], &mut self.lm_head.grad[..]),
+        ]
+    }
+
+    /// Executes single forward and analytical backward step on a continuous embedding vector.
+    /// Accumulates parameter gradients into internal layers' `.grad`.
+    /// Returns (loss, d_emb) where d_emb is gradient wrt input embedding.
+    pub fn train_step_emb(
+        &mut self,
+        x_emb: &[f32],
+        target_b: usize,
+        state: &mut ScaledSrxState,
+        ws: &mut ScaledWorkspace,
+    ) -> (f32, Vec<f32>) {
+        let dm = self.config.d_model;
+        debug_assert_eq!(x_emb.len(), dm);
+
+        // 1. Pre-Attn RMSNorm
+        let mut norm_buf_1 = vec![0.0f32; dm];
+        self.norm_attn.forward(x_emb, &mut norm_buf_1);
+
+        // 2. Attention step
+        let mut attn_out = vec![0.0f32; dm];
+        self.attn.step(&norm_buf_1, state, &mut attn_out, ws);
+
+        // 3. Residual 1
+        let mut res1 = vec![0.0f32; dm];
+        for i in 0..dm {
+            res1[i] = x_emb[i] + attn_out[i];
+        }
+
+        // 4. Pre-FFN RMSNorm
+        let mut norm_buf_2 = vec![0.0f32; dm];
+        self.norm_ffn.forward(&res1, &mut norm_buf_2);
+
+        // 5. FFN block
+        let mut hidden_act = vec![0.0f32; self.config.d_ff];
+        let mut ffn_out = vec![0.0f32; dm];
+        self.ffn.forward(&norm_buf_2, &mut hidden_act, &mut ffn_out);
+
+        // 6. Residual 2
+        let mut res2 = vec![0.0f32; dm];
+        for i in 0..dm {
+            res2[i] = res1[i] + ffn_out[i];
+        }
+
+        // 7. Final RMSNorm
+        let mut norm_buf_3 = vec![0.0f32; dm];
+        self.norm_final.forward(&res2, &mut norm_buf_3);
+
+        // 8. LM Head
+        let mut logits = vec![0.0f32; 256];
+        self.lm_head.forward(&norm_buf_3, &mut logits);
+
+        // 9. Softmax & Cross-Entropy
+        let mut max_l = f32::NEG_INFINITY;
+        for &l in &logits {
+            if l > max_l {
+                max_l = l;
+            }
+        }
+        let mut sum_exp = 0.0f32;
+        let mut probs = [0.0f32; 256];
+        for b in 0..256 {
+            probs[b] = (logits[b] - max_l).exp();
+            sum_exp += probs[b];
+        }
+        let inv_sum = 1.0 / sum_exp.max(1e-12);
+        for b in 0..256 {
+            probs[b] *= inv_sum;
+        }
+
+        let target_b = target_b.min(255);
+        let loss = -probs[target_b].max(1e-12).ln();
+
+        // 10. Gradient of cross-entropy
+        let mut d_logits = [0.0f32; 256];
+        for b in 0..256 {
+            d_logits[b] = probs[b];
+        }
+        d_logits[target_b] -= 1.0;
+
+        // 11. Backward through LM Head
+        let mut d_norm_buf_3 = vec![0.0f32; dm];
+        self.lm_head.backward(&norm_buf_3, &d_logits, &mut d_norm_buf_3);
+
+        // 12. Backward through Final RMSNorm
+        let mut d_res2 = vec![0.0f32; dm];
+        self.norm_final.backward(&res2, &d_norm_buf_3, &mut d_res2);
+
+        // 13. Residual 2 & FFN backward
+        let mut d_res1 = d_res2.clone();
+        let mut d_hidden = vec![0.0f32; self.config.d_ff];
+        let mut d_norm_buf_2 = vec![0.0f32; dm];
+        self.ffn.backward(&norm_buf_2, &hidden_act, &d_res2, &mut d_hidden, &mut d_norm_buf_2);
+
+        let mut d_res1_from_ffn = vec![0.0f32; dm];
+        self.norm_ffn.backward(&res1, &d_norm_buf_2, &mut d_res1_from_ffn);
+        for i in 0..dm {
+            d_res1[i] += d_res1_from_ffn[i];
+        }
+
+        // 14. Attention backward
+        let mut d_head_outputs = vec![0.0f32; dm];
+        self.attn.w_o.backward(&ws.head_outputs, &d_res1, &mut d_head_outputs);
+
+        let d_q = d_head_outputs.clone();
+        let d_k = d_head_outputs.clone();
+        let d_v = d_head_outputs.clone();
+
+        let mut d_norm_buf_1_q = vec![0.0f32; dm];
+        let mut d_norm_buf_1_k = vec![0.0f32; dm];
+        let mut d_norm_buf_1_v = vec![0.0f32; dm];
+        self.attn.w_q.backward(&norm_buf_1, &d_q, &mut d_norm_buf_1_q);
+        self.attn.w_k.backward(&norm_buf_1, &d_k, &mut d_norm_buf_1_k);
+        self.attn.w_v.backward(&norm_buf_1, &d_v, &mut d_norm_buf_1_v);
+
+        let mut d_norm_buf_1 = vec![0.0f32; dm];
+        for i in 0..dm {
+            d_norm_buf_1[i] = d_norm_buf_1_q[i] + d_norm_buf_1_k[i] + d_norm_buf_1_v[i];
+        }
+
+        // 15. Pre-Attn RMSNorm backward
+        let mut d_x_emb = d_res1.clone();
+        let mut d_x_emb_from_attn = vec![0.0f32; dm];
+        self.norm_attn.backward(x_emb, &d_norm_buf_1, &mut d_x_emb_from_attn);
+        for i in 0..dm {
+            d_x_emb[i] += d_x_emb_from_attn[i];
+        }
+
+        (loss, d_x_emb)
+    }
 }

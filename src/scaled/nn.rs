@@ -278,4 +278,42 @@ impl ScaledAdamW {
             *p -= step_size * (self.m[i] / denom);
         }
     }
+
+    /// Performs one AdamW step across multiple parameter-gradient slice pairs in place,
+    /// scaling gradients by `grad_scale` and clipping to `[-5.0, 5.0]`, then zeroing gradients.
+    #[inline(always)]
+    pub fn step_layers(&mut self, layers: &mut [(&mut [f32], &mut [f32])], grad_scale: f32) {
+        self.step += 1;
+        let beta1 = self.beta1;
+        let beta2 = self.beta2;
+        let eps = self.eps;
+        let wd = self.weight_decay;
+        let lr = self.lr;
+
+        let bias_correction1 = 1.0 - beta1.powi(self.step as i32);
+        let bias_correction2 = 1.0 - beta2.powi(self.step as i32);
+        let step_size = lr * (bias_correction2.sqrt() / bias_correction1);
+
+        let mut offset = 0;
+        for (w, g) in layers.iter_mut() {
+            let n = w.len();
+            for i in 0..n {
+                let mut grad_val = g[i] * grad_scale;
+                if grad_val > 5.0 {
+                    grad_val = 5.0;
+                } else if grad_val < -5.0 {
+                    grad_val = -5.0;
+                }
+
+                let p = &mut w[i];
+                *p -= lr * wd * *p;
+                self.m[offset + i] = beta1 * self.m[offset + i] + (1.0 - beta1) * grad_val;
+                self.v[offset + i] = beta2 * self.v[offset + i] + (1.0 - beta2) * grad_val * grad_val;
+                let denom = self.v[offset + i].sqrt() + eps;
+                *p -= step_size * (self.m[offset + i] / denom);
+                g[i] = 0.0;
+            }
+            offset += n;
+        }
+    }
 }

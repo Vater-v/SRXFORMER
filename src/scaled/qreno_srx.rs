@@ -101,12 +101,10 @@ impl QrenoSrxLM {
         let mut state = self.init_state();
         let mut logits = vec![0.0f32; 256];
 
-        // Ingest prompt
+        // Ingest prompt byte-by-byte
         let prompt_bytes = prompt.as_bytes();
-        let clusters = self.tokenizer.tokenize_to_clusters(prompt);
-        for c in clusters {
-            let cluster_bytes = &prompt_bytes[c.start..c.start + c.len];
-            self.step_cluster(cluster_bytes, &mut state, &mut logits, ws);
+        for &b in prompt_bytes {
+            self.step_cluster(&[b], &mut state, &mut logits, ws);
         }
 
         let mut generated = Vec::with_capacity(max_bytes);
@@ -136,5 +134,26 @@ impl QrenoSrxLM {
     /// Total parameter count across Q-RENO frontend and Scaled SRX core.
     pub fn param_count(&self) -> usize {
         self.tokenizer.weights.param_count() + self.transformer.param_count()
+    }
+
+    /// Executes single forward and analytical backward step on a single byte cluster.
+    /// Accumulates gradients into both SRX transformer layers and Q-RENO field parameters.
+    /// Returns the cross-entropy loss.
+    pub fn train_step_cluster(
+        &mut self,
+        cluster_bytes: &[u8],
+        target_b: usize,
+        state: &mut ScaledSrxState,
+        ws: &mut ScaledWorkspace,
+        qreno_grad: &mut crate::qreno::model::QrenoGrad,
+    ) -> f32 {
+        let mut emb = vec![0.0f32; self.config.d_model];
+        self.tokenizer.embed_cluster_bytes(cluster_bytes, &mut emb);
+
+        let (loss, d_emb) = self.transformer.train_step_emb(&emb, target_b, state, ws);
+
+        self.tokenizer.forward_backward_cluster(cluster_bytes, &d_emb, qreno_grad);
+
+        loss
     }
 }

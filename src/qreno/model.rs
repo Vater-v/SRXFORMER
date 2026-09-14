@@ -114,6 +114,16 @@ impl QrenoGrad {
         self.b_bond_grad = 0.0;
         self.w_o_grad.fill(0.0);
     }
+
+    /// Scales accumulated gradients by factor and clips extremes to [-5.0, 5.0].
+    pub fn scale(&mut self, factor: f32) {
+        for x in &mut self.charges_grad { *x = (*x * factor).clamp(-5.0, 5.0); }
+        for x in &mut self.epsilon_grad { *x = (*x * factor).clamp(-5.0, 5.0); }
+        for x in &mut self.omega_grad { *x = (*x * factor).clamp(-5.0, 5.0); }
+        for x in &mut self.w_bond_grad { *x = (*x * factor).clamp(-5.0, 5.0); }
+        self.b_bond_grad = (self.b_bond_grad * factor).clamp(-5.0, 5.0);
+        for x in &mut self.w_o_grad { *x = (*x * factor).clamp(-5.0, 5.0); }
+    }
 }
 
 /// AdamW optimizer state for Q-RENO parameters.

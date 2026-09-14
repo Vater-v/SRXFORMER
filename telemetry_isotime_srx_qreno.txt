@@ -5,15 +5,15 @@
 ================================================================================
 
 [1] TRAINING DYNAMICS & WALL-CLOCK THROUGHPUT:
-    * Total Tokens:          1107371
-    * Epochs Completed:      0.27
-    * Decoding Speed:        553647.4 tokens/sec
-    * Final Train Loss:      5.5878 (PPL: 267.15)
-    * Val Loss (Wikipedia):  5.5876 (PPL: 267.09)
+    * Total Tokens:          113521
+    * Epochs Completed:      0.03
+    * Decoding Speed:        56668.6 tokens/sec
+    * Final Train Loss:      1.7178 (PPL: 5.57)
+    * Val Loss (Wikipedia):  1.6541 (PPL: 5.23)
 
 [2] TYPO & PERTURBATION ROBUSTNESS (100 Wikipedia Pairs):
-    * Mean Cosine Similarity: 0.9954
-    * Mean Delta Loss:        0.0022
+    * Mean Cosine Similarity: 0.9997
+    * Mean Delta Loss:        0.0083
 
 [3] THE MEMORY WALL CHALLENGE (Context Scaling):
     N        | Classic KV   | Classic Cache Tier        | Classic Lat  | SRX Lat    | Speedup   
@@ -27,4 +27,18 @@
     65536    | 4096.0 KB    | L3 Cache (256 KB - 20 MB, Shared Bus) | 3237.28  µs | 2.02   µs | 1602.61x
 
 [4] PERIODIC TELEMETRY CHECKPOINTS:
-    t=  1.0s | tokens= 554210 | loss=5.5876 | speed=554126.7 tok/s | GFLOP/s=23.94
+    t=  1.0s | tokens=  57372 | loss=3.0576 | speed=57332.8 tok/s | GFLOP/s=2.48
+    t=  2.0s | tokens= 113521 | loss=1.7178 | speed=56668.8 tok/s | GFLOP/s=2.45
+
+[5] LEARNED SKILLS EVALUATION & QUALITATIVE GENERATIONS:
+    [Term Autocompletion ] Prompt: "матем"            | Output: "ооооо"                | Expected: "атика"      | Match: false
+    [Term Autocompletion ] Prompt: "логи"             | Output: "ооооо"                | Expected: "ка"         | Match: false
+    [Term Autocompletion ] Prompt: "нау"              | Output: "ооооо"                | Expected: "ка"         | Match: false
+    [Term Autocompletion ] Prompt: "теор"             | Output: "ооооо"                | Expected: "ия"         | Match: false
+    [Term Autocompletion ] Prompt: "модел"            | Output: "ооооо"                | Expected: "ь"          | Match: false
+    [Phrase Continuation ] Prompt: "математика это "  | Output: "оооооооооо"           | Expected: "valid continuation" | Match: true
+    [Phrase Continuation ] Prompt: "логика это "      | Output: "оооооооооо"           | Expected: "valid continuation" | Match: true
+    [Phrase Continuation ] Prompt: "наука это "       | Output: "оооооооооо"           | Expected: "valid continuation" | Match: true
+    [Basic Arithmetic    ] Prompt: "2 + 2 = "         | Output: "оо�"                  | Expected: "4"          | Match: false
+    [Basic Arithmetic    ] Prompt: "1 + 1 = "         | Output: "оо�"                  | Expected: "2"          | Match: false
+    [Typo Invariance     ] Prompt: "математка это "   | Output: "оооооооооо"           | Expected: "robust continuation" | Match: true
