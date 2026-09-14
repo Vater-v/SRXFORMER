@@ -73,6 +73,64 @@ pub const VOCAB_V2: [&str; 41] = [
     "дом",       // 40
 ];
 
+/// Extended vocabulary mapping of 53 tokens (v3).
+/// Tokens 0..40 are 100% backward compatible with v2 and v1.
+pub const VOCAB_V3: [&str; 53] = [
+    "<pad>",     // 0
+    "<eos>",     // 1
+    "<user>",    // 2
+    "<bot>",     // 3
+    "0",         // 4
+    "1",         // 5
+    "2",         // 6
+    "3",         // 7
+    "4",         // 8
+    "5",         // 9
+    "+",         // 10
+    "-",         // 11
+    "=",         // 12
+    "кот",       // 13
+    "пес",       // 14
+    "животное",  // 15
+    "друг",      // 16
+    "это",       // 17
+    "да",        // 18
+    "нет",       // 19
+    "кто",       // 20
+    "6",         // 21
+    "7",         // 22
+    "8",         // 23
+    "9",         // 24
+    "*",         // 25
+    "волк",      // 26
+    "лиса",      // 27
+    "заяц",      // 28
+    "рыба",      // 29
+    "птица",     // 30
+    "зверь",     // 31
+    "хищник",    // 32
+    "человек",   // 33
+    "враг",      // 34
+    "где",       // 35
+    "что",       // 36
+    "река",      // 37
+    "небо",      // 38
+    "лес",       // 39
+    "дом",       // 40
+    "/",         // 41
+    "медведь",   // 42
+    "змея",      // 43
+    "щука",      // 44
+    "дуб",       // 45
+    "дерево",    // 46
+    "тайга",     // 47
+    "нора",      // 48
+    "поле",      // 49
+    "трава",     // 50
+    "вода",      // 51
+    "ест",       // 52
+];
+
 pub const PAD_TOKEN_ID: usize = 0;
 pub const EOS_TOKEN_ID: usize = 1;
 pub const USER_TOKEN_ID: usize = 2;
@@ -85,9 +143,9 @@ pub struct Tokenizer {
 }
 
 impl Tokenizer {
-    /// Creates a new Tokenizer pre-populated with the extended 41-token vocabulary (v2).
+    /// Creates a new Tokenizer pre-populated with the extended 53-token vocabulary (v3).
     pub fn new() -> Self {
-        Self::v2()
+        Self::v3()
     }
 
     /// Creates a Tokenizer pre-populated with the legacy 21-token vocabulary (v1).
@@ -99,6 +157,12 @@ impl Tokenizer {
     /// Creates a Tokenizer pre-populated with the extended 41-token vocabulary (v2).
     pub fn v2() -> Self {
         let vocab = VOCAB_V2.iter().map(|&s| s.to_string()).collect();
+        Self { vocab }
+    }
+
+    /// Creates a Tokenizer pre-populated with the extended 53-token vocabulary (v3).
+    pub fn v3() -> Self {
+        let vocab = VOCAB_V3.iter().map(|&s| s.to_string()).collect();
         Self { vocab }
     }
 
@@ -163,7 +227,7 @@ impl Tokenizer {
                 }
             }
 
-            // Check for single character tokens (0..9, +, -, =, *)
+            // Check for single character tokens (0..9, +, -, =, *, /)
             let single_char_str = &text[i..i + c.len_utf8()];
             if let Some(id) = self.token_to_id(single_char_str) {
                 tokens.push(id);
@@ -179,7 +243,7 @@ impl Tokenizer {
                     || next_c == '<'
                     || next_c == '>'
                     || next_c == '?'
-                    || matches!(next_c, '0'..='9' | '+' | '-' | '=' | '*')
+                    || matches!(next_c, '0'..='9' | '+' | '-' | '=' | '*' | '/')
                 {
                     break;
                 }
@@ -219,7 +283,9 @@ mod tests {
     #[test]
     fn test_vocab_size() {
         let tok = Tokenizer::new();
-        assert_eq!(tok.vocab_size(), 41);
+        assert_eq!(tok.vocab_size(), 53);
+        let tok_v2 = Tokenizer::v2();
+        assert_eq!(tok_v2.vocab_size(), 41);
         let tok_v1 = Tokenizer::v1();
         assert_eq!(tok_v1.vocab_size(), 21);
     }
@@ -286,5 +352,25 @@ mod tests {
         let enc_fact = tok.encode(fact);
         assert_eq!(enc_fact, vec![27, 17, 32, 1]);
         assert_eq!(tok.decode(&enc_fact), fact);
+    }
+
+    #[test]
+    fn test_roundtrip_v3_division_and_predicates() {
+        let tok = Tokenizer::new();
+        let original = "<user> 6 / 2 = <bot> 3 <eos>";
+        let encoded = tok.encode(original);
+        assert_eq!(encoded, vec![2, 21, 41, 6, 12, 3, 7, 1]);
+        let decoded = tok.decode(&encoded);
+        assert_eq!(decoded, original);
+
+        let fact = "волк ест заяц <eos>";
+        let enc_fact = tok.encode(fact);
+        assert_eq!(enc_fact, vec![26, 52, 28, 1]);
+        assert_eq!(tok.decode(&enc_fact), fact);
+
+        let where_pike = "<user> где щука <bot> вода <eos>";
+        let enc_pike = tok.encode(where_pike);
+        assert_eq!(enc_pike, vec![2, 35, 44, 3, 51, 1]);
+        assert_eq!(tok.decode(&enc_pike), where_pike);
     }
 }

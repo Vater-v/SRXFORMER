@@ -1,0 +1,866 @@
+0 + 0 = 0 <eos>
+0 + 1 = 1 <eos>
+0 + 2 = 2 <eos>
+0 + 3 = 3 <eos>
+0 + 4 = 4 <eos>
+0 + 5 = 5 <eos>
+1 + 0 = 1 <eos>
+1 + 1 = 2 <eos>
+1 + 2 = 3 <eos>
+1 + 3 = 4 <eos>
+1 + 4 = 5 <eos>
+2 + 0 = 2 <eos>
+2 + 1 = 3 <eos>
+2 + 2 = 4 <eos>
+2 + 3 = 5 <eos>
+3 + 0 = 3 <eos>
+3 + 1 = 4 <eos>
+3 + 2 = 5 <eos>
+4 + 0 = 4 <eos>
+4 + 1 = 5 <eos>
+5 + 0 = 5 <eos>
+0 - 0 = 0 <eos>
+1 - 0 = 1 <eos>
+1 - 1 = 0 <eos>
+2 - 0 = 2 <eos>
+2 - 1 = 1 <eos>
+2 - 2 = 0 <eos>
+3 - 0 = 3 <eos>
+3 - 1 = 2 <eos>
+3 - 2 = 1 <eos>
+3 - 3 = 0 <eos>
+4 - 0 = 4 <eos>
+4 - 1 = 3 <eos>
+4 - 2 = 2 <eos>
+4 - 3 = 1 <eos>
+4 - 4 = 0 <eos>
+5 - 0 = 5 <eos>
+5 - 1 = 4 <eos>
+5 - 2 = 3 <eos>
+5 - 3 = 2 <eos>
+5 - 4 = 1 <eos>
+5 - 5 = 0 <eos>
+кот это животное <eos>
+пес это животное <eos>
+пес это друг <eos>
+кот это друг <eos>
+кто кот = кот это животное <eos>
+кто пес = пес это животное <eos>
+кто кот = кот это друг <eos>
+кто пес = пес это друг <eos>
+кто кот = животное <eos>
+кто пес = животное <eos>
+кто кот = друг <eos>
+кто пес = друг <eos>
+кот это пес = нет <eos>
+пес это кот = нет <eos>
+кот это животное = да <eos>
+пес это животное = да <eos>
+пес это друг = да <eos>
+кот это друг = да <eos>
+животное это кот = да <eos>
+животное это пес = да <eos>
+друг это пес = да <eos>
+друг это кот = да <eos>
+кот это 0 = нет <eos>
+пес это 1 = нет <eos>
+кот это 2 = нет <eos>
+пес это 3 = нет <eos>
+1 это 2 = нет <eos>
+2 это 3 = нет <eos>
+3 это 4 = нет <eos>
+4 это 5 = нет <eos>
+0 это 0 = да <eos>
+1 это 1 = да <eos>
+2 это 2 = да <eos>
+3 это 3 = да <eos>
+4 это 4 = да <eos>
+5 это 5 = да <eos>
+<user> 0 + 0 = <bot> 0 <eos>
+<user> 0 + 1 = <bot> 1 <eos>
+<user> 0 + 2 = <bot> 2 <eos>
+<user> 0 + 3 = <bot> 3 <eos>
+<user> 0 + 4 = <bot> 4 <eos>
+<user> 0 + 5 = <bot> 5 <eos>
+<user> 1 + 0 = <bot> 1 <eos>
+<user> 1 + 1 = <bot> 2 <eos>
+<user> 1 + 2 = <bot> 3 <eos>
+<user> 1 + 3 = <bot> 4 <eos>
+<user> 1 + 4 = <bot> 5 <eos>
+<user> 2 + 0 = <bot> 2 <eos>
+<user> 2 + 1 = <bot> 3 <eos>
+<user> 2 + 2 = <bot> 4 <eos>
+<user> 2 + 3 = <bot> 5 <eos>
+<user> 3 + 0 = <bot> 3 <eos>
+<user> 3 + 1 = <bot> 4 <eos>
+<user> 3 + 2 = <bot> 5 <eos>
+<user> 4 + 0 = <bot> 4 <eos>
+<user> 4 + 1 = <bot> 5 <eos>
+<user> 5 + 0 = <bot> 5 <eos>
+<user> 0 - 0 = <bot> 0 <eos>
+<user> 1 - 0 = <bot> 1 <eos>
+<user> 1 - 1 = <bot> 0 <eos>
+<user> 2 - 0 = <bot> 2 <eos>
+<user> 2 - 1 = <bot> 1 <eos>
+<user> 2 - 2 = <bot> 0 <eos>
+<user> 3 - 0 = <bot> 3 <eos>
+<user> 3 - 1 = <bot> 2 <eos>
+<user> 3 - 2 = <bot> 1 <eos>
+<user> 3 - 3 = <bot> 0 <eos>
+<user> 4 - 0 = <bot> 4 <eos>
+<user> 4 - 1 = <bot> 3 <eos>
+<user> 4 - 2 = <bot> 2 <eos>
+<user> 4 - 3 = <bot> 1 <eos>
+<user> 4 - 4 = <bot> 0 <eos>
+<user> 5 - 0 = <bot> 5 <eos>
+<user> 5 - 1 = <bot> 4 <eos>
+<user> 5 - 2 = <bot> 3 <eos>
+<user> 5 - 3 = <bot> 2 <eos>
+<user> 5 - 4 = <bot> 1 <eos>
+<user> 5 - 5 = <bot> 0 <eos>
+<user> кто кот <bot> кот это животное <eos>
+<user> кто пес <bot> пес это друг <eos>
+<user> кот это пес <bot> нет <eos>
+<user> пес это кот <bot> нет <eos>
+<user> кот это животное <bot> да <eos>
+<user> пес это животное <bot> да <eos>
+<user> пес это друг <bot> да <eos>
+<user> кот это друг <bot> да <eos>
+<user> животное это кот <bot> да <eos>
+<user> животное это пес <bot> да <eos>
+<user> друг это пес <bot> да <eos>
+<user> друг это кот <bot> да <eos>
+<user> кот это 0 <bot> нет <eos>
+<user> пес это 1 <bot> нет <eos>
+<user> кот это 2 <bot> нет <eos>
+<user> пес это 3 <bot> нет <eos>
+<user> 1 это 2 <bot> нет <eos>
+<user> 2 это 3 <bot> нет <eos>
+<user> 3 это 4 <bot> нет <eos>
+<user> 4 это 5 <bot> нет <eos>
+<user> 0 это 0 <bot> да <eos>
+<user> 1 это 1 <bot> да <eos>
+<user> 2 это 2 <bot> да <eos>
+<user> 3 это 3 <bot> да <eos>
+<user> 4 это 4 <bot> да <eos>
+<user> 5 это 5 <bot> да <eos>
+0 + 6 = 6 <eos>
+<user> 0 + 6 = <bot> 6 <eos>
+0 + 7 = 7 <eos>
+<user> 0 + 7 = <bot> 7 <eos>
+0 + 8 = 8 <eos>
+<user> 0 + 8 = <bot> 8 <eos>
+0 + 9 = 9 <eos>
+<user> 0 + 9 = <bot> 9 <eos>
+1 + 5 = 6 <eos>
+<user> 1 + 5 = <bot> 6 <eos>
+1 + 6 = 7 <eos>
+<user> 1 + 6 = <bot> 7 <eos>
+1 + 7 = 8 <eos>
+<user> 1 + 7 = <bot> 8 <eos>
+1 + 8 = 9 <eos>
+<user> 1 + 8 = <bot> 9 <eos>
+2 + 4 = 6 <eos>
+<user> 2 + 4 = <bot> 6 <eos>
+2 + 5 = 7 <eos>
+<user> 2 + 5 = <bot> 7 <eos>
+2 + 6 = 8 <eos>
+<user> 2 + 6 = <bot> 8 <eos>
+2 + 7 = 9 <eos>
+<user> 2 + 7 = <bot> 9 <eos>
+3 + 3 = 6 <eos>
+<user> 3 + 3 = <bot> 6 <eos>
+3 + 4 = 7 <eos>
+<user> 3 + 4 = <bot> 7 <eos>
+3 + 5 = 8 <eos>
+<user> 3 + 5 = <bot> 8 <eos>
+3 + 6 = 9 <eos>
+<user> 3 + 6 = <bot> 9 <eos>
+4 + 2 = 6 <eos>
+<user> 4 + 2 = <bot> 6 <eos>
+4 + 3 = 7 <eos>
+<user> 4 + 3 = <bot> 7 <eos>
+4 + 4 = 8 <eos>
+<user> 4 + 4 = <bot> 8 <eos>
+4 + 5 = 9 <eos>
+<user> 4 + 5 = <bot> 9 <eos>
+5 + 1 = 6 <eos>
+<user> 5 + 1 = <bot> 6 <eos>
+5 + 2 = 7 <eos>
+<user> 5 + 2 = <bot> 7 <eos>
+5 + 3 = 8 <eos>
+<user> 5 + 3 = <bot> 8 <eos>
+5 + 4 = 9 <eos>
+<user> 5 + 4 = <bot> 9 <eos>
+6 + 0 = 6 <eos>
+<user> 6 + 0 = <bot> 6 <eos>
+6 + 1 = 7 <eos>
+<user> 6 + 1 = <bot> 7 <eos>
+6 + 2 = 8 <eos>
+<user> 6 + 2 = <bot> 8 <eos>
+6 + 3 = 9 <eos>
+<user> 6 + 3 = <bot> 9 <eos>
+7 + 0 = 7 <eos>
+<user> 7 + 0 = <bot> 7 <eos>
+7 + 1 = 8 <eos>
+<user> 7 + 1 = <bot> 8 <eos>
+7 + 2 = 9 <eos>
+<user> 7 + 2 = <bot> 9 <eos>
+8 + 0 = 8 <eos>
+<user> 8 + 0 = <bot> 8 <eos>
+8 + 1 = 9 <eos>
+<user> 8 + 1 = <bot> 9 <eos>
+9 + 0 = 9 <eos>
+<user> 9 + 0 = <bot> 9 <eos>
+6 - 0 = 6 <eos>
+<user> 6 - 0 = <bot> 6 <eos>
+6 - 1 = 5 <eos>
+<user> 6 - 1 = <bot> 5 <eos>
+6 - 2 = 4 <eos>
+<user> 6 - 2 = <bot> 4 <eos>
+6 - 3 = 3 <eos>
+<user> 6 - 3 = <bot> 3 <eos>
+6 - 4 = 2 <eos>
+<user> 6 - 4 = <bot> 2 <eos>
+6 - 5 = 1 <eos>
+<user> 6 - 5 = <bot> 1 <eos>
+6 - 6 = 0 <eos>
+<user> 6 - 6 = <bot> 0 <eos>
+7 - 0 = 7 <eos>
+<user> 7 - 0 = <bot> 7 <eos>
+7 - 1 = 6 <eos>
+<user> 7 - 1 = <bot> 6 <eos>
+7 - 2 = 5 <eos>
+<user> 7 - 2 = <bot> 5 <eos>
+7 - 3 = 4 <eos>
+<user> 7 - 3 = <bot> 4 <eos>
+7 - 4 = 3 <eos>
+<user> 7 - 4 = <bot> 3 <eos>
+7 - 5 = 2 <eos>
+<user> 7 - 5 = <bot> 2 <eos>
+7 - 6 = 1 <eos>
+<user> 7 - 6 = <bot> 1 <eos>
+7 - 7 = 0 <eos>
+<user> 7 - 7 = <bot> 0 <eos>
+8 - 0 = 8 <eos>
+<user> 8 - 0 = <bot> 8 <eos>
+8 - 1 = 7 <eos>
+<user> 8 - 1 = <bot> 7 <eos>
+8 - 2 = 6 <eos>
+<user> 8 - 2 = <bot> 6 <eos>
+8 - 3 = 5 <eos>
+<user> 8 - 3 = <bot> 5 <eos>
+8 - 4 = 4 <eos>
+<user> 8 - 4 = <bot> 4 <eos>
+8 - 5 = 3 <eos>
+<user> 8 - 5 = <bot> 3 <eos>
+8 - 6 = 2 <eos>
+<user> 8 - 6 = <bot> 2 <eos>
+8 - 7 = 1 <eos>
+<user> 8 - 7 = <bot> 1 <eos>
+8 - 8 = 0 <eos>
+<user> 8 - 8 = <bot> 0 <eos>
+9 - 0 = 9 <eos>
+<user> 9 - 0 = <bot> 9 <eos>
+9 - 1 = 8 <eos>
+<user> 9 - 1 = <bot> 8 <eos>
+9 - 2 = 7 <eos>
+<user> 9 - 2 = <bot> 7 <eos>
+9 - 3 = 6 <eos>
+<user> 9 - 3 = <bot> 6 <eos>
+9 - 4 = 5 <eos>
+<user> 9 - 4 = <bot> 5 <eos>
+9 - 5 = 4 <eos>
+<user> 9 - 5 = <bot> 4 <eos>
+9 - 6 = 3 <eos>
+<user> 9 - 6 = <bot> 3 <eos>
+9 - 7 = 2 <eos>
+<user> 9 - 7 = <bot> 2 <eos>
+9 - 8 = 1 <eos>
+<user> 9 - 8 = <bot> 1 <eos>
+9 - 9 = 0 <eos>
+<user> 9 - 9 = <bot> 0 <eos>
+1 * 1 = 1 <eos>
+<user> 1 * 1 = <bot> 1 <eos>
+1 * 2 = 2 <eos>
+<user> 1 * 2 = <bot> 2 <eos>
+1 * 3 = 3 <eos>
+<user> 1 * 3 = <bot> 3 <eos>
+1 * 4 = 4 <eos>
+<user> 1 * 4 = <bot> 4 <eos>
+1 * 5 = 5 <eos>
+<user> 1 * 5 = <bot> 5 <eos>
+1 * 6 = 6 <eos>
+<user> 1 * 6 = <bot> 6 <eos>
+1 * 7 = 7 <eos>
+<user> 1 * 7 = <bot> 7 <eos>
+1 * 8 = 8 <eos>
+<user> 1 * 8 = <bot> 8 <eos>
+1 * 9 = 9 <eos>
+<user> 1 * 9 = <bot> 9 <eos>
+2 * 1 = 2 <eos>
+<user> 2 * 1 = <bot> 2 <eos>
+2 * 2 = 4 <eos>
+<user> 2 * 2 = <bot> 4 <eos>
+2 * 3 = 6 <eos>
+<user> 2 * 3 = <bot> 6 <eos>
+2 * 4 = 8 <eos>
+<user> 2 * 4 = <bot> 8 <eos>
+3 * 1 = 3 <eos>
+<user> 3 * 1 = <bot> 3 <eos>
+3 * 2 = 6 <eos>
+<user> 3 * 2 = <bot> 6 <eos>
+3 * 3 = 9 <eos>
+<user> 3 * 3 = <bot> 9 <eos>
+4 * 1 = 4 <eos>
+<user> 4 * 1 = <bot> 4 <eos>
+4 * 2 = 8 <eos>
+<user> 4 * 2 = <bot> 8 <eos>
+5 * 1 = 5 <eos>
+<user> 5 * 1 = <bot> 5 <eos>
+6 * 1 = 6 <eos>
+<user> 6 * 1 = <bot> 6 <eos>
+7 * 1 = 7 <eos>
+<user> 7 * 1 = <bot> 7 <eos>
+8 * 1 = 8 <eos>
+<user> 8 * 1 = <bot> 8 <eos>
+9 * 1 = 9 <eos>
+<user> 9 * 1 = <bot> 9 <eos>
+0 * 3 = 0 <eos>
+<user> 0 * 3 = <bot> 0 <eos>
+где волк = лес <eos>
+<user> где волк <bot> лес <eos>
+где лиса = лес <eos>
+<user> где лиса <bot> лес <eos>
+где заяц = лес <eos>
+<user> где заяц <bot> лес <eos>
+где рыба = река <eos>
+<user> где рыба <bot> река <eos>
+где птица = небо <eos>
+<user> где птица <bot> небо <eos>
+где кот = дом <eos>
+<user> где кот <bot> дом <eos>
+где пес = дом <eos>
+<user> где пес <bot> дом <eos>
+где человек = дом <eos>
+<user> где человек <bot> дом <eos>
+волк это зверь <eos>
+лиса это хищник <eos>
+птица это животное <eos>
+рыба это животное <eos>
+человек это друг <eos>
+волк это враг <eos>
+заяц это зверь <eos>
+волк это хищник <eos>
+лиса это зверь <eos>
+заяц это животное <eos>
+волк это животное <eos>
+лиса это животное <eos>
+кто волк = зверь <eos>
+кто лиса = хищник <eos>
+кто заяц = зверь <eos>
+кто рыба = животное <eos>
+кто птица = животное <eos>
+кто человек = друг <eos>
+кто волк = волк это зверь <eos>
+кто лиса = лиса это хищник <eos>
+кто заяц = заяц это зверь <eos>
+кто рыба = рыба это животное <eos>
+кто птица = птица это животное <eos>
+кто человек = человек это друг <eos>
+<user> кто волк <bot> волк это зверь <eos>
+<user> кто лиса <bot> лиса это хищник <eos>
+<user> кто заяц <bot> заяц это зверь <eos>
+<user> кто рыба <bot> рыба это животное <eos>
+<user> кто птица <bot> птица это животное <eos>
+<user> кто человек <bot> человек это друг <eos>
+волк это зверь = да <eos>
+<user> волк это зверь <bot> да <eos>
+лиса это хищник = да <eos>
+<user> лиса это хищник <bot> да <eos>
+рыба это животное = да <eos>
+<user> рыба это животное <bot> да <eos>
+человек это друг = да <eos>
+<user> человек это друг <bot> да <eos>
+волк это хищник = да <eos>
+<user> волк это хищник <bot> да <eos>
+волк это враг = да <eos>
+<user> волк это враг <bot> да <eos>
+птица это животное = да <eos>
+<user> птица это животное <bot> да <eos>
+заяц это зверь = да <eos>
+<user> заяц это зверь <bot> да <eos>
+лиса это зверь = да <eos>
+<user> лиса это зверь <bot> да <eos>
+заяц это животное = да <eos>
+<user> заяц это животное <bot> да <eos>
+волк это животное = да <eos>
+<user> волк это животное <bot> да <eos>
+лиса это животное = да <eos>
+<user> лиса это животное <bot> да <eos>
+6 это 6 = да <eos>
+<user> 6 это 6 <bot> да <eos>
+7 это 7 = да <eos>
+<user> 7 это 7 <bot> да <eos>
+8 это 8 = да <eos>
+<user> 8 это 8 <bot> да <eos>
+9 это 9 = да <eos>
+<user> 9 это 9 <bot> да <eos>
+волк это пес = нет <eos>
+<user> волк это пес <bot> нет <eos>
+лиса это кот = нет <eos>
+<user> лиса это кот <bot> нет <eos>
+рыба это птица = нет <eos>
+<user> рыба это птица <bot> нет <eos>
+птица это рыба = нет <eos>
+<user> птица это рыба <bot> нет <eos>
+заяц это хищник = нет <eos>
+<user> заяц это хищник <bot> нет <eos>
+рыба это хищник = нет <eos>
+<user> рыба это хищник <bot> нет <eos>
+человек это враг = нет <eos>
+<user> человек это враг <bot> нет <eos>
+человек это зверь = нет <eos>
+<user> человек это зверь <bot> нет <eos>
+кот это рыба = нет <eos>
+<user> кот это рыба <bot> нет <eos>
+пес это птица = нет <eos>
+<user> пес это птица <bot> нет <eos>
+волк это заяц = нет <eos>
+<user> волк это заяц <bot> нет <eos>
+лиса это заяц = нет <eos>
+<user> лиса это заяц <bot> нет <eos>
+5 это 6 = нет <eos>
+<user> 5 это 6 <bot> нет <eos>
+6 это 7 = нет <eos>
+<user> 6 это 7 <bot> нет <eos>
+7 это 8 = нет <eos>
+<user> 7 это 8 <bot> нет <eos>
+8 это 9 = нет <eos>
+<user> 8 это 9 <bot> нет <eos>
+0 / 1 = 0 <eos>
+<user> 0 / 1 = <bot> 0 <eos>
+0 / 2 = 0 <eos>
+<user> 0 / 2 = <bot> 0 <eos>
+0 / 3 = 0 <eos>
+<user> 0 / 3 = <bot> 0 <eos>
+0 / 4 = 0 <eos>
+<user> 0 / 4 = <bot> 0 <eos>
+0 / 5 = 0 <eos>
+<user> 0 / 5 = <bot> 0 <eos>
+0 / 6 = 0 <eos>
+<user> 0 / 6 = <bot> 0 <eos>
+0 / 7 = 0 <eos>
+<user> 0 / 7 = <bot> 0 <eos>
+0 / 8 = 0 <eos>
+<user> 0 / 8 = <bot> 0 <eos>
+0 / 9 = 0 <eos>
+<user> 0 / 9 = <bot> 0 <eos>
+1 / 1 = 1 <eos>
+<user> 1 / 1 = <bot> 1 <eos>
+2 / 1 = 2 <eos>
+<user> 2 / 1 = <bot> 2 <eos>
+3 / 1 = 3 <eos>
+<user> 3 / 1 = <bot> 3 <eos>
+4 / 1 = 4 <eos>
+<user> 4 / 1 = <bot> 4 <eos>
+5 / 1 = 5 <eos>
+<user> 5 / 1 = <bot> 5 <eos>
+6 / 1 = 6 <eos>
+<user> 6 / 1 = <bot> 6 <eos>
+7 / 1 = 7 <eos>
+<user> 7 / 1 = <bot> 7 <eos>
+8 / 1 = 8 <eos>
+<user> 8 / 1 = <bot> 8 <eos>
+9 / 1 = 9 <eos>
+<user> 9 / 1 = <bot> 9 <eos>
+2 / 2 = 1 <eos>
+<user> 2 / 2 = <bot> 1 <eos>
+4 / 2 = 2 <eos>
+<user> 4 / 2 = <bot> 2 <eos>
+6 / 2 = 3 <eos>
+<user> 6 / 2 = <bot> 3 <eos>
+8 / 2 = 4 <eos>
+<user> 8 / 2 = <bot> 4 <eos>
+3 / 3 = 1 <eos>
+<user> 3 / 3 = <bot> 1 <eos>
+6 / 3 = 2 <eos>
+<user> 6 / 3 = <bot> 2 <eos>
+9 / 3 = 3 <eos>
+<user> 9 / 3 = <bot> 3 <eos>
+4 / 4 = 1 <eos>
+<user> 4 / 4 = <bot> 1 <eos>
+8 / 4 = 2 <eos>
+<user> 8 / 4 = <bot> 2 <eos>
+5 / 5 = 1 <eos>
+<user> 5 / 5 = <bot> 1 <eos>
+6 / 6 = 1 <eos>
+<user> 6 / 6 = <bot> 1 <eos>
+7 / 7 = 1 <eos>
+<user> 7 / 7 = <bot> 1 <eos>
+8 / 8 = 1 <eos>
+<user> 8 / 8 = <bot> 1 <eos>
+9 / 9 = 1 <eos>
+<user> 9 / 9 = <bot> 1 <eos>
+0 * 0 = 0 <eos>
+<user> 0 * 0 = <bot> 0 <eos>
+0 * 1 = 0 <eos>
+<user> 0 * 1 = <bot> 0 <eos>
+0 * 2 = 0 <eos>
+<user> 0 * 2 = <bot> 0 <eos>
+0 * 4 = 0 <eos>
+<user> 0 * 4 = <bot> 0 <eos>
+0 * 5 = 0 <eos>
+<user> 0 * 5 = <bot> 0 <eos>
+0 * 6 = 0 <eos>
+<user> 0 * 6 = <bot> 0 <eos>
+0 * 7 = 0 <eos>
+<user> 0 * 7 = <bot> 0 <eos>
+0 * 8 = 0 <eos>
+<user> 0 * 8 = <bot> 0 <eos>
+0 * 9 = 0 <eos>
+<user> 0 * 9 = <bot> 0 <eos>
+1 * 0 = 0 <eos>
+<user> 1 * 0 = <bot> 0 <eos>
+2 * 0 = 0 <eos>
+<user> 2 * 0 = <bot> 0 <eos>
+3 * 0 = 0 <eos>
+<user> 3 * 0 = <bot> 0 <eos>
+4 * 0 = 0 <eos>
+<user> 4 * 0 = <bot> 0 <eos>
+5 * 0 = 0 <eos>
+<user> 5 * 0 = <bot> 0 <eos>
+6 * 0 = 0 <eos>
+<user> 6 * 0 = <bot> 0 <eos>
+7 * 0 = 0 <eos>
+<user> 7 * 0 = <bot> 0 <eos>
+8 * 0 = 0 <eos>
+<user> 8 * 0 = <bot> 0 <eos>
+9 * 0 = 0 <eos>
+<user> 9 * 0 = <bot> 0 <eos>
+медведь это зверь <eos>
+щука это рыба <eos>
+змея это хищник <eos>
+дуб это дерево <eos>
+медведь это хищник <eos>
+щука это хищник <eos>
+медведь это животное <eos>
+щука это животное <eos>
+змея это животное <eos>
+щука это зверь = нет <eos>
+змея это зверь = нет <eos>
+медведь это рыба = нет <eos>
+щука это птица = нет <eos>
+дуб это животное = нет <eos>
+дерево это животное = нет <eos>
+змея это рыба = нет <eos>
+медведь это птица = нет <eos>
+кот это дерево = нет <eos>
+пес это дерево = нет <eos>
+волк это дерево = нет <eos>
+рыба это зверь = нет <eos>
+кто медведь = зверь <eos>
+кто щука = рыба <eos>
+кто змея = хищник <eos>
+кто дуб = дерево <eos>
+кто медведь = медведь это зверь <eos>
+кто щука = щука это рыба <eos>
+кто змея = змея это хищник <eos>
+кто дуб = дуб это дерево <eos>
+<user> кто медведь <bot> медведь это зверь <eos>
+<user> кто щука <bot> щука это рыба <eos>
+<user> кто змея <bot> змея это хищник <eos>
+<user> кто дуб <bot> дуб это дерево <eos>
+<user> кто медведь <bot> зверь <eos>
+<user> кто щука <bot> рыба <eos>
+<user> кто змея <bot> хищник <eos>
+<user> кто дуб <bot> дерево <eos>
+где медведь = тайга <eos>
+<user> где медведь <bot> тайга <eos>
+где щука = вода <eos>
+<user> где щука <bot> вода <eos>
+где змея = нора <eos>
+<user> где змея <bot> нора <eos>
+где заяц = поле <eos>
+<user> где заяц <bot> поле <eos>
+где дуб = лес <eos>
+<user> где дуб <bot> лес <eos>
+где дуб = тайга <eos>
+<user> где дуб <bot> тайга <eos>
+где трава = поле <eos>
+<user> где трава <bot> поле <eos>
+где вода = река <eos>
+<user> где вода <bot> река <eos>
+где рыба = вода <eos>
+<user> где рыба <bot> вода <eos>
+где змея = поле <eos>
+<user> где змея <bot> поле <eos>
+где волк = тайга <eos>
+<user> где волк <bot> тайга <eos>
+где лиса = нора <eos>
+<user> где лиса <bot> нора <eos>
+где птица = лес <eos>
+<user> где птица <bot> лес <eos>
+волк ест заяц <eos>
+<user> волк ест заяц <bot> да <eos>
+волк ест заяц = да <eos>
+заяц ест трава <eos>
+<user> заяц ест трава <bot> да <eos>
+заяц ест трава = да <eos>
+щука ест рыба <eos>
+<user> щука ест рыба <bot> да <eos>
+щука ест рыба = да <eos>
+медведь ест рыба <eos>
+<user> медведь ест рыба <bot> да <eos>
+медведь ест рыба = да <eos>
+змея ест рыба <eos>
+<user> змея ест рыба <bot> да <eos>
+змея ест рыба = да <eos>
+лиса ест заяц <eos>
+<user> лиса ест заяц <bot> да <eos>
+лиса ест заяц = да <eos>
+кот ест рыба <eos>
+<user> кот ест рыба <bot> да <eos>
+кот ест рыба = да <eos>
+птица ест рыба <eos>
+<user> птица ест рыба <bot> да <eos>
+птица ест рыба = да <eos>
+пес ест рыба <eos>
+<user> пес ест рыба <bot> да <eos>
+пес ест рыба = да <eos>
+медведь ест трава <eos>
+<user> медведь ест трава <bot> да <eos>
+медведь ест трава = да <eos>
+человек ест рыба <eos>
+<user> человек ест рыба <bot> да <eos>
+человек ест рыба = да <eos>
+волк ест рыба <eos>
+<user> волк ест рыба <bot> да <eos>
+волк ест рыба = да <eos>
+лиса ест рыба <eos>
+<user> лиса ест рыба <bot> да <eos>
+лиса ест рыба = да <eos>
+змея ест заяц <eos>
+<user> змея ест заяц <bot> да <eos>
+змея ест заяц = да <eos>
+медведь ест заяц <eos>
+<user> медведь ест заяц <bot> да <eos>
+медведь ест заяц = да <eos>
+рыба ест трава <eos>
+<user> рыба ест трава <bot> да <eos>
+рыба ест трава = да <eos>
+заяц ест волк = нет <eos>
+<user> заяц ест волк <bot> нет <eos>
+рыба ест щука = нет <eos>
+<user> рыба ест щука <bot> нет <eos>
+трава ест заяц = нет <eos>
+<user> трава ест заяц <bot> нет <eos>
+рыба ест медведь = нет <eos>
+<user> рыба ест медведь <bot> нет <eos>
+птица ест лиса = нет <eos>
+<user> птица ест лиса <bot> нет <eos>
+кот ест волк = нет <eos>
+<user> кот ест волк <bot> нет <eos>
+щука ест трава = нет <eos>
+<user> щука ест трава <bot> нет <eos>
+волк ест трава = нет <eos>
+<user> волк ест трава <bot> нет <eos>
+лиса ест трава = нет <eos>
+<user> лиса ест трава <bot> нет <eos>
+змея ест волк = нет <eos>
+<user> змея ест волк <bot> нет <eos>
+заяц ест лиса = нет <eos>
+<user> заяц ест лиса <bot> нет <eos>
+рыба ест птица = нет <eos>
+<user> рыба ест птица <bot> нет <eos>
+трава ест волк = нет <eos>
+<user> трава ест волк <bot> нет <eos>
+дуб ест заяц = нет <eos>
+<user> дуб ест заяц <bot> нет <eos>
+медведь это зверь = да <eos>
+<user> медведь это зверь <bot> да <eos>
+щука это рыба = да <eos>
+<user> щука это рыба <bot> да <eos>
+змея это хищник = да <eos>
+<user> змея это хищник <bot> да <eos>
+дуб это дерево = да <eos>
+<user> дуб это дерево <bot> да <eos>
+щука это хищник = да <eos>
+<user> щука это хищник <bot> да <eos>
+медведь это хищник = да <eos>
+<user> медведь это хищник <bot> да <eos>
+медведь это животное = да <eos>
+<user> медведь это животное <bot> да <eos>
+щука это животное = да <eos>
+<user> щука это животное <bot> да <eos>
+змея это животное = да <eos>
+<user> змея это животное <bot> да <eos>
+медведь это медведь = да <eos>
+<user> медведь это медведь <bot> да <eos>
+змея это змея = да <eos>
+<user> змея это змея <bot> да <eos>
+щука это щука = да <eos>
+<user> щука это щука <bot> да <eos>
+дуб это дуб = да <eos>
+<user> дуб это дуб <bot> да <eos>
+дерево это дерево = да <eos>
+<user> дерево это дерево <bot> да <eos>
+тайга это тайга = да <eos>
+<user> тайга это тайга <bot> да <eos>
+нора это нора = да <eos>
+<user> нора это нора <bot> да <eos>
+поле это поле = да <eos>
+<user> поле это поле <bot> да <eos>
+трава это трава = да <eos>
+<user> трава это трава <bot> да <eos>
+вода это вода = да <eos>
+<user> вода это вода <bot> да <eos>
+змея это птица = нет <eos>
+<user> змея это птица <bot> нет <eos>
+<user> щука это зверь <bot> нет <eos>
+<user> медведь это рыба <bot> нет <eos>
+<user> дуб это животное <bot> нет <eos>
+<user> дерево это животное <bot> нет <eos>
+волк это трава = нет <eos>
+<user> волк это трава <bot> нет <eos>
+щука это вода = нет <eos>
+<user> щука это вода <bot> нет <eos>
+медведь это тайга = нет <eos>
+<user> медведь это тайга <bot> нет <eos>
+змея это нора = нет <eos>
+<user> змея это нора <bot> нет <eos>
+заяц это поле = нет <eos>
+<user> заяц это поле <bot> нет <eos>
+дуб это лес = нет <eos>
+<user> дуб это лес <bot> нет <eos>
+медведь это дуб = нет <eos>
+<user> медведь это дуб <bot> нет <eos>
+щука это дуб = нет <eos>
+<user> щука это дуб <bot> нет <eos>
+змея это дуб = нет <eos>
+<user> змея это дуб <bot> нет <eos>
+дерево это рыба = нет <eos>
+<user> дерево это рыба <bot> нет <eos>
+трава это рыба = нет <eos>
+<user> трава это рыба <bot> нет <eos>
+вода это зверь = нет <eos>
+<user> вода это зверь <bot> нет <eos>
+тайга это птица = нет <eos>
+<user> тайга это птица <bot> нет <eos>
+нора это кот = нет <eos>
+<user> нора это кот <bot> нет <eos>
+поле это пес = нет <eos>
+<user> поле это пес <bot> нет <eos>
+волк ест заяц заяц ест трава = да <eos>
+<user> волк ест заяц заяц ест трава <bot> да <eos>
+щука ест рыба рыба ест трава = да <eos>
+<user> щука ест рыба рыба ест трава <bot> да <eos>
+медведь это зверь тайга это лес = да <eos>
+<user> кто ест заяц <bot> волк <eos>
+<user> кто ест рыба <bot> щука <eos>
+<user> кто ест трава <bot> заяц <eos>
+0 + 0 = 0 = да <eos>
+<user> 0 + 0 = 0 <bot> да <eos>
+0 + 0 = 1 = нет <eos>
+<user> 0 + 0 = 1 <bot> нет <eos>
+0 + 1 = 1 = да <eos>
+<user> 0 + 1 = 1 <bot> да <eos>
+0 + 1 = 2 = нет <eos>
+<user> 0 + 1 = 2 <bot> нет <eos>
+0 + 2 = 2 = да <eos>
+<user> 0 + 2 = 2 <bot> да <eos>
+0 + 2 = 3 = нет <eos>
+<user> 0 + 2 = 3 <bot> нет <eos>
+0 + 3 = 3 = да <eos>
+<user> 0 + 3 = 3 <bot> да <eos>
+0 + 3 = 4 = нет <eos>
+<user> 0 + 3 = 4 <bot> нет <eos>
+0 + 4 = 4 = да <eos>
+<user> 0 + 4 = 4 <bot> да <eos>
+0 + 4 = 5 = нет <eos>
+<user> 0 + 4 = 5 <bot> нет <eos>
+1 + 0 = 1 = да <eos>
+<user> 1 + 0 = 1 <bot> да <eos>
+1 + 0 = 2 = нет <eos>
+<user> 1 + 0 = 2 <bot> нет <eos>
+1 + 1 = 2 = да <eos>
+<user> 1 + 1 = 2 <bot> да <eos>
+1 + 1 = 3 = нет <eos>
+<user> 1 + 1 = 3 <bot> нет <eos>
+1 + 2 = 3 = да <eos>
+<user> 1 + 2 = 3 <bot> да <eos>
+1 + 2 = 4 = нет <eos>
+<user> 1 + 2 = 4 <bot> нет <eos>
+1 + 3 = 4 = да <eos>
+<user> 1 + 3 = 4 <bot> да <eos>
+1 + 3 = 5 = нет <eos>
+<user> 1 + 3 = 5 <bot> нет <eos>
+1 + 4 = 5 = да <eos>
+<user> 1 + 4 = 5 <bot> да <eos>
+1 + 4 = 6 = нет <eos>
+<user> 1 + 4 = 6 <bot> нет <eos>
+2 + 0 = 2 = да <eos>
+<user> 2 + 0 = 2 <bot> да <eos>
+2 + 0 = 3 = нет <eos>
+<user> 2 + 0 = 3 <bot> нет <eos>
+2 + 1 = 3 = да <eos>
+<user> 2 + 1 = 3 <bot> да <eos>
+2 + 1 = 4 = нет <eos>
+<user> 2 + 1 = 4 <bot> нет <eos>
+2 + 2 = 4 = да <eos>
+<user> 2 + 2 = 4 <bot> да <eos>
+2 + 2 = 5 = нет <eos>
+<user> 2 + 2 = 5 <bot> нет <eos>
+2 + 3 = 5 = да <eos>
+<user> 2 + 3 = 5 <bot> да <eos>
+2 + 3 = 6 = нет <eos>
+<user> 2 + 3 = 6 <bot> нет <eos>
+2 + 4 = 6 = да <eos>
+<user> 2 + 4 = 6 <bot> да <eos>
+2 + 4 = 7 = нет <eos>
+<user> 2 + 4 = 7 <bot> нет <eos>
+3 + 0 = 3 = да <eos>
+<user> 3 + 0 = 3 <bot> да <eos>
+3 + 0 = 4 = нет <eos>
+<user> 3 + 0 = 4 <bot> нет <eos>
+3 + 1 = 4 = да <eos>
+<user> 3 + 1 = 4 <bot> да <eos>
+3 + 1 = 5 = нет <eos>
+<user> 3 + 1 = 5 <bot> нет <eos>
+3 + 2 = 5 = да <eos>
+<user> 3 + 2 = 5 <bot> да <eos>
+3 + 2 = 6 = нет <eos>
+<user> 3 + 2 = 6 <bot> нет <eos>
+3 + 3 = 6 = да <eos>
+<user> 3 + 3 = 6 <bot> да <eos>
+3 + 3 = 7 = нет <eos>
+<user> 3 + 3 = 7 <bot> нет <eos>
+3 + 4 = 7 = да <eos>
+<user> 3 + 4 = 7 <bot> да <eos>
+3 + 4 = 8 = нет <eos>
+<user> 3 + 4 = 8 <bot> нет <eos>
+4 + 0 = 4 = да <eos>
+<user> 4 + 0 = 4 <bot> да <eos>
+4 + 0 = 5 = нет <eos>
+<user> 4 + 0 = 5 <bot> нет <eos>
+4 + 1 = 5 = да <eos>
+<user> 4 + 1 = 5 <bot> да <eos>
+4 + 1 = 6 = нет <eos>
+<user> 4 + 1 = 6 <bot> нет <eos>
+4 + 2 = 6 = да <eos>
+<user> 4 + 2 = 6 <bot> да <eos>
+4 + 2 = 7 = нет <eos>
+<user> 4 + 2 = 7 <bot> нет <eos>
+4 + 3 = 7 = да <eos>
+<user> 4 + 3 = 7 <bot> да <eos>
+4 + 3 = 8 = нет <eos>
+<user> 4 + 3 = 8 <bot> нет <eos>
+4 + 4 = 8 = да <eos>
+<user> 4 + 4 = 8 <bot> да <eos>
+4 + 4 = 9 = нет <eos>
+<user> 4 + 4 = 9 <bot> нет <eos>
+что ест волк = заяц <eos>
+<user> что ест волк <bot> заяц <eos>
+что ест заяц = трава <eos>
+<user> что ест заяц <bot> трава <eos>
+вода это река <eos>

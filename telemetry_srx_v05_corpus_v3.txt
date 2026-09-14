@@ -1,0 +1,96 @@
+================================================================================
+ SRXFORMER: SUPER-RESOLVENT XFORMER v05 (QUANTUM-ALGEBRAIC CORE) TELEMETRY
+ Target Architecture: Intel Xeon E5-2650 v2 (Ivy Bridge-EP)                     
+ Model Parameters:    896 (100% L1D Cache Resident, 32 KB per core)             
+================================================================================
+
+[1] ВЛОЖЕННЫЙ COMPUTE НА ОБУЧЕНИЕ (TRAINING COMPUTE):
+    * Вложили compute:          21757881600 FLOPs (21757.88 MFLOPs / 21.7579 GFLOPs)
+    * Время обучения:           24920.40 ms (24.920 s)
+    * Формула FLOPs:            (6 * N_params + 864) * tokens_per_epoch * epochs
+                                = (6 * 896 + 864) * 5880 * 593
+    * Эффективная скорость:     873.10 MFLOP/s (0.8731 GFLOP/s)
+    * Начальный Loss:           4.6954 (Перплексия: 109.44)
+    * Финальный Loss:           1.0558 (Перплексия: 2.87)
+    * Всего шагов (Steps):      513538 gradient updates
+
+[2] COMPUTE, ЛАТЕНТНОСТЬ И ПАМЯТЬ СОСТОЯНИЯ НА ИНФЕРЕНСЕ (INFERENCE COMPUTE & MEMORY):
+    * Ответ за compute:         2080 FLOPs на токен (~ 2 * N_params + 352)
+    * Время генерации токена:   2467.1 ns (2.467 µs)
+    * Пропускная способность:   405335 токенов/сек (0.41M токенов/сек)
+    * Вычислительная скорость:  0.8431 GFLOP/s
+    * Число бенчмарк шагов:     50000 tokens decoded
+    --------------------------------------------------------------------------------
+    * СРАВНЕНИЕ ОБЪЕМА ПАМЯТИ СОСТОЯНИЯ (STATE MEMORY FOOTPRINT):
+      - SRX v05 State (Thetas + M + P): 288 bytes (СТРОГО КОНСТАНТНО O(1), 100% L1D resident)
+      - Classic KV Cache (N=32 ): 2048 bytes (7.1x больше SRX)
+      - Classic KV Cache (N=1K):  65536 bytes (227.6x больше SRX -> вытеснение L1D)
+      - Classic KV Cache (N=100K):6400000 bytes (22222.2x больше SRX -> вытеснение в DRAM)
+      - Преимущество SRX v05:   RLS-память 2-го порядка, глубина Крылова K=2, фазовый импульс, 0 DRAM трафика
+
+[3] КАЧЕСТВО МОДЕЛИ (QUALITY EVALUATION - EXACT MATCH):
+    * Точность (Exact Match):   40.0% (24/60 тестов пройдено)
+    --------------------------------------------------------------------------------
+    | Статус | Домен / Категория               | Промпт                       | Вывод модели         |
+    |--------|---------------------------------|------------------------------|----------------------|
+    | FAIL   | Addition Arithmetic (Basic)     | <user> 2 + 3 = <bot>         | 6 <eos>              |
+    | PASS   | Addition Arithmetic (Basic)     | <user> 1 + 2 = <bot>         | 3 <eos>              |
+    | FAIL   | Addition Arithmetic (Basic)     | <user> 0 + 1 = <bot>         | 2 <eos>              |
+    | PASS   | Addition Arithmetic (Basic)     | <user> 2 + 2 = <bot>         | 4 <eos>              |
+    | PASS   | Addition Arithmetic (Basic)     | <user> 3 + 1 = <bot>         | 4 <eos>              |
+    | FAIL   | Addition Arithmetic (Extended)  | <user> 3 + 4 = <bot>         | 8 <eos>              |
+    | PASS   | Addition Arithmetic (Extended)  | <user> 5 + 3 = <bot>         | 8 <eos>              |
+    | FAIL   | Addition Arithmetic (Extended)  | <user> 4 + 5 = <bot>         | 8 <eos>              |
+    | FAIL   | Addition Arithmetic (Base Prompt) | 2 + 3 =                      | 6 = нет <eos>        |
+    | FAIL   | Addition Arithmetic (Base Prompt) | 3 + 4 =                      | 8 = нет <eos>        |
+    | FAIL   | Subtraction Arithmetic (Basic)  | <user> 4 - 1 = <bot>         | 2 <eos>              |
+    | PASS   | Subtraction Arithmetic (Basic)  | <user> 5 - 2 = <bot>         | 3 <eos>              |
+    | PASS   | Subtraction Arithmetic (Basic)  | <user> 3 - 1 = <bot>         | 2 <eos>              |
+    | PASS   | Subtraction Arithmetic (Basic)  | <user> 2 - 1 = <bot>         | 1 <eos>              |
+    | FAIL   | Subtraction Arithmetic (Basic)  | <user> 5 - 5 = <bot>         | 2 <eos>              |
+    | FAIL   | Subtraction Arithmetic (Extended) | <user> 9 - 4 = <bot>         | 4 <eos>              |
+    | FAIL   | Subtraction Arithmetic (Extended) | <user> 8 - 3 = <bot>         | 4 <eos>              |
+    | FAIL   | Subtraction Arithmetic (Extended) | <user> 7 - 2 = <bot>         | 4 <eos>              |
+    | PASS   | Subtraction Arithmetic (Base Prompt) | 4 - 1 =                      | 3 <eos>              |
+    | FAIL   | Subtraction Arithmetic (Base Prompt) | 8 - 3 =                      | 4 <eos>              |
+    | FAIL   | Multiplication Arithmetic (Basic) | <user> 2 * 3 = <bot>         | 3 <eos>              |
+    | FAIL   | Multiplication Arithmetic (Basic) | <user> 2 * 2 = <bot>         | 3 <eos>              |
+    | FAIL   | Multiplication Arithmetic (Basic) | <user> 3 * 3 = <bot>         | 4 <eos>              |
+    | FAIL   | Multiplication Arithmetic (Extended) | <user> 4 * 2 = <bot>         | 4 <eos>              |
+    | PASS   | Division Arithmetic (Exact)     | <user> 6 / 2 = <bot>         | 3 <eos>              |
+    | PASS   | Division Arithmetic (Exact)     | <user> 8 / 4 = <bot>         | 2 <eos>              |
+    | PASS   | Division Arithmetic (Exact)     | <user> 9 / 3 = <bot>         | 3 <eos>              |
+    | PASS   | Division Arithmetic (Exact)     | <user> 4 / 2 = <bot>         | 2 <eos>              |
+    | FAIL   | Multiplication Arithmetic (Base Prompt) | 2 * 3 =                      | 3 <eos>              |
+    | FAIL   | Division Arithmetic (Base Prompt) | 6 / 2 =                      | <bot> 3 <eos>        |
+    | FAIL   | Entity Taxonomy (кот)           | <user> кто кот <bot>         | медведь это зверь <eos> |
+    | FAIL   | Entity Taxonomy (пес)           | <user> кто пес <bot>         | медведь это зверь <eos> |
+    | FAIL   | Entity Taxonomy (волк)          | <user> кто волк <bot>        | = зверь <eos>        |
+    | FAIL   | Entity Taxonomy (лиса)          | <user> кто лиса <bot>        | = зверь <eos>        |
+    | FAIL   | Entity Taxonomy (медведь)       | <user> кто медведь <bot>     | = зверь <eos>        |
+    | FAIL   | Entity Taxonomy (щука)          | <user> кто щука <bot>        | волк это зверь <eos> |
+    | FAIL   | Entity Taxonomy (змея)          | <user> кто змея <bot>        | волк это зверь <eos> |
+    | FAIL   | Entity Taxonomy (дуб)           | <user> кто дуб <bot>         | дерево <eos>         |
+    | FAIL   | Entity Taxonomy (Base Prompt)   | кто кот =                    | друг <eos>           |
+    | FAIL   | Entity Taxonomy (Base Prompt)   | кто медведь =                | зверь <eos>          |
+    | FAIL   | Spatial Reasoning (волк)        | <user> где волк <bot>        | нет <eos>            |
+    | PASS   | Spatial Reasoning (рыба)        | <user> где рыба <bot>        | река <eos>           |
+    | FAIL   | Spatial Reasoning (кот)         | <user> где кот <bot>         | лес <eos>            |
+    | FAIL   | Spatial Reasoning (птица)       | <user> где птица <bot>       | лес <eos>            |
+    | PASS   | Spatial Reasoning (медведь)     | <user> где медведь <bot>     | тайга <eos>          |
+    | FAIL   | Spatial Reasoning (щука)        | <user> где щука <bot>        | тайга <eos>          |
+    | FAIL   | Spatial Reasoning (змея)        | <user> где змея <bot>        | тайга <eos>          |
+    | FAIL   | Spatial Reasoning (заяц)        | <user> где заяц <bot>        | тайга <eos>          |
+    | PASS   | Spatial Reasoning (Base Prompt) | где рыба =                   | река <eos>           |
+    | FAIL   | Spatial Reasoning (Base Prompt) | где медведь =                | нора <eos>           |
+    | PASS   | Boolean Logic (Negation)        | <user> кот это пес <bot>     | нет <eos>            |
+    | PASS   | Boolean Logic (Affirmation)     | <user> кот это животное <bot> | да <eos>             |
+    | PASS   | Boolean Logic (Negation)        | <user> медведь это рыба <bot> | нет <eos>            |
+    | FAIL   | Boolean Logic (Affirmation)     | <user> щука это рыба <bot>   | нет <eos>            |
+    | PASS   | Transitivity / Food Chain (Affirmation) | <user> волк ест заяц <bot>   | да <eos>             |
+    | PASS   | Transitivity / Food Chain (Negation) | <user> заяц ест волк <bot>   | нет <eos>            |
+    | PASS   | Transitivity / Food Chain (Affirmation) | <user> щука ест рыба <bot>   | да <eos>             |
+    | PASS   | Transitivity / Food Chain (Negation) | <user> рыба ест щука <bot>   | нет <eos>            |
+    | PASS   | Boolean Logic (Base Prompt)     | волк это зверь =             | да <eos>             |
+    | PASS   | Transitivity / Food Chain (Base Prompt) | медведь ест рыба =           | да <eos>             |
+================================================================================

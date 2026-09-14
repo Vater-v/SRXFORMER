@@ -179,6 +179,33 @@ impl TransformerConfig {
         }
     }
 
+    /// Strict parameter parity configuration for Corpus v3 (EXACTLY 896 parameters).
+    /// Used by both Classical Transformer and SRX v05 Quantum-Algebraic Core.
+    /// (Vocab = 53, d_model = 8, n_heads = 2, n_layers = 1, d_ff = 12, max_seq_len = 32,
+    /// RMSNorm, Relu, Sinusoidal, tie_word_embeddings = true, use_bias = false).
+    /// Parameter breakdown:
+    /// - Token Embeddings: 53 * 8 = 424
+    /// - Attention Projections (W_q, W_k, W_v, W_o): 4 * (8 * 8) = 256
+    /// - Norms (Pre-Attn, Pre-FFN, Final): 3 * 8 = 24
+    /// - FFN (W1 [12, 8] + W2 [8, 12]): 96 + 96 = 192
+    /// Total = 424 + 256 + 24 + 192 = EXACTLY 896 parameters (3,584 bytes -> 100% L1D Cache resident).
+    pub fn lang_v3() -> Self {
+        Self {
+            vocab_size: 53,
+            d_model: 8,
+            n_heads: 2,
+            n_layers: 1,
+            d_ff: 12,
+            max_seq_len: 32,
+            eps: 1e-5,
+            norm_type: NormType::RMSNorm,
+            activation: ActivationType::Relu,
+            pos_encoding: PosEncodingType::Sinusoidal,
+            tie_word_embeddings: true,
+            use_bias: false,
+        }
+    }
+
     /// Micro configuration (~3.5k parameters) with 2 layers and untied head.
     pub fn micro() -> Self {
         Self {
@@ -365,6 +392,14 @@ mod tests {
         assert_eq!(config.validate(), Ok(()));
         let count = config.param_count();
         assert_eq!(count, 896, "Classical parity config must have exactly 896 parameters!");
+    }
+
+    #[test]
+    fn test_lang_v3_param_count() {
+        let config = TransformerConfig::lang_v3();
+        assert_eq!(config.validate(), Ok(()));
+        let count = config.param_count();
+        assert_eq!(count, 896, "Lang v3 config must have exactly 896 parameters!");
     }
 
     #[test]

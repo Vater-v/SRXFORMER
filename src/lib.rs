@@ -11,6 +11,7 @@ pub mod srx_v01;
 pub mod srx_v02;
 pub mod srx_v03;
 pub mod srx_v04;
+pub mod srx_v05;
 
 // Re-export classic transformer module
 pub use classic::{
@@ -18,7 +19,7 @@ pub use classic::{
     AdamW, FastRng, FeedForward, InferenceTelemetry, InferenceWorkspace, KvCache,
     MultiHeadAttention, NormType, PosEncodingType, TestCaseResult, TelemetryReport, Tokenizer,
     TrainMetrics, TrainTelemetry, TrainWorkspace, Transformer, TransformerConfig, TransformerGrad,
-    TransformerLayer, VOCAB, VOCAB_V2, BOT_TOKEN_ID, EOS_TOKEN_ID, PAD_TOKEN_ID, USER_TOKEN_ID,
+    TransformerLayer, VOCAB, VOCAB_V2, VOCAB_V3, BOT_TOKEN_ID, EOS_TOKEN_ID, PAD_TOKEN_ID, USER_TOKEN_ID,
 };
 
 // Re-export SRX v01 (Frozen Reference)
@@ -85,6 +86,25 @@ pub use srx_v04::{
     SrxWorkspace as SrxWorkspaceV04, SRX_ALPHA as SRX_V04_ALPHA,
     SRX_EPS_DEFAULT as SRX_V04_EPS_DEFAULT, SRX_GAMMA_BASE as SRX_V04_GAMMA_BASE,
     SRX_W_MAX as SRX_V04_W_MAX,
+};
+
+// Re-export SRX v05 (Quantum-Algebraic Core: RLS Memory, Krylov Resolvent Depth, Monarch Phase Momentum)
+pub use srx_v05::{
+    apply_butterfly_4 as srx_v05_apply_butterfly_4,
+    apply_butterfly_4_backward as srx_v05_apply_butterfly_4_backward,
+    apply_butterfly_4_inplace as srx_v05_apply_butterfly_4_inplace,
+    backward_loss as srx_v05_backward_loss, fast_sin_cos as srx_v05_fast_sin_cos,
+    forward_loss as srx_v05_forward_loss, l2_normalize as srx_v05_l2_normalize,
+    l2_normalize_backward as srx_v05_l2_normalize_backward,
+    split_into_eos_sequences as srx_v05_split_into_eos_sequences,
+    train_dataset as srx_v05_train_dataset, SrxAdamW as SrxAdamWV05,
+    SrxAttention as SrxAttentionV05, SrxGrad as SrxGradV05, SrxLayer as SrxLayerV05,
+    SrxState as SrxStateV05, SrxTelemetryReport as SrxTelemetryReportV05,
+    SrxTrainWorkspace as SrxTrainWorkspaceV05, SrxTransformer as SrxTransformerV05,
+    SrxWorkspace as SrxWorkspaceV05, SRX_ALPHA as SRX_V05_ALPHA,
+    SRX_EPS_DEFAULT as SRX_V05_EPS_DEFAULT, SRX_MU as SRX_V05_MU,
+    SRX_RLS_DELTA as SRX_V05_RLS_DELTA, SRX_RLS_LAMBDA as SRX_V05_RLS_LAMBDA,
+    SRX_W_MAX as SRX_V05_W_MAX,
 };
 
 // Primary SRX exports map to v02 (preserves 100% test compatibility)
