@@ -22,7 +22,7 @@ pub use bench::{
 pub use classic::{ScaledClassicAttention, ScaledClassicKvCache, ScaledClassicTransformer};
 pub use config::{ScaledConfig, ScalingCalculator, Tier};
 pub use generator::{apply_repetition_penalty, sample_token, FastRng, SamplingConfig};
-pub use nn::{AutoregressiveModel, Module, ScaledAdamW, ScaledFFN, ScaledLinear, ScaledRMSNorm};
+pub use nn::{clip_grad_norm_layers, AutoregressiveModel, Module, ScaledAdamW, ScaledFFN, ScaledLinear, ScaledRMSNorm};
 pub use qreno_srx::QrenoSrxLM;
 pub use srx::{ScaledSequenceWorkspace, ScaledSrxAttention, ScaledSrxState, ScaledSrxTransformer, ScaledWorkspace};
 

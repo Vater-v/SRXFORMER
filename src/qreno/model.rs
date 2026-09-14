@@ -177,6 +177,12 @@ impl QrenoAdamW {
         }
     }
 
+    /// Sets the learning rate dynamically.
+    #[inline(always)]
+    pub fn set_lr(&mut self, lr: f32) {
+        self.lr = lr;
+    }
+
     /// Performs one AdamW optimization update step on `QrenoWeights`.
     pub fn step(&mut self, weights: &mut QrenoWeights, grad: &QrenoGrad) {
         self.step += 1;

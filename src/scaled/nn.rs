@@ -279,6 +279,12 @@ impl ScaledAdamW {
         }
     }
 
+    /// Sets the learning rate dynamically (e.g. for cosine scheduling).
+    #[inline(always)]
+    pub fn set_lr(&mut self, lr: f32) {
+        self.lr = lr;
+    }
+
     /// Performs one AdamW step across multiple parameter-gradient slice pairs in place,
     /// scaling gradients by `grad_scale` and clipping to `[-5.0, 5.0]`, then zeroing gradients.
     #[inline(always)]
@@ -317,3 +323,26 @@ impl ScaledAdamW {
         }
     }
 }
+
+/// Computes the L2 norm of gradients and scales them in-place if they exceed `max_norm`.
+/// Returns the original total norm before clipping.
+#[inline(always)]
+pub fn clip_grad_norm_layers(layers: &mut [(&mut [f32], &mut [f32])], max_norm: f32) -> f32 {
+    let mut sum_sq = 0.0f32;
+    for (_, g) in layers.iter() {
+        for &val in g.iter() {
+            sum_sq += val * val;
+        }
+    }
+    let total_norm = sum_sq.sqrt();
+    if total_norm > max_norm && total_norm > 1e-7 {
+        let scale = max_norm / total_norm;
+        for (_, g) in layers.iter_mut() {
+            for val in g.iter_mut() {
+                *val *= scale;
+            }
+        }
+    }
+    total_norm
+}
+

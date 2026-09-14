@@ -259,4 +259,81 @@ impl QrenoSrxLM {
 
         loss
     }
+
+    /// Saves all model weights (Q-RENO frontend + Scaled SRX core) to a binary file.
+    pub fn save_weights<P: AsRef<std::path::Path>>(&self, path: P) -> std::io::Result<()> {
+        use std::io::Write;
+        let mut file = std::fs::File::create(path)?;
+        file.write_all(b"QSRX")?; // 4 magic bytes
+        file.write_all(&1u32.to_le_bytes())?; // version 1
+        file.write_all(&(self.config.n_heads as u32).to_le_bytes())?;
+        file.write_all(&(self.config.d_model as u32).to_le_bytes())?;
+
+        // Q-RENO weights
+        for &w in &self.tokenizer.weights.field.charges { file.write_all(&w.to_le_bytes())?; }
+        for &w in &self.tokenizer.weights.field.epsilon { file.write_all(&w.to_le_bytes())?; }
+        for &w in &self.tokenizer.weights.field.omega { file.write_all(&w.to_le_bytes())?; }
+        for &w in &self.tokenizer.weights.bond.w_bond { file.write_all(&w.to_le_bytes())?; }
+        file.write_all(&self.tokenizer.weights.bond.b_bond.to_le_bytes())?;
+        for &w in &self.tokenizer.weights.measure.w_o { file.write_all(&w.to_le_bytes())?; }
+
+        // Transformer weights
+        let layers = [
+            &self.transformer.embed.weight[..],
+            &self.transformer.norm_attn.weight[..],
+            &self.transformer.attn.w_q.weight[..],
+            &self.transformer.attn.w_k.weight[..],
+            &self.transformer.attn.w_v.weight[..],
+            &self.transformer.attn.w_o.weight[..],
+            &self.transformer.norm_ffn.weight[..],
+            &self.transformer.ffn.w1.weight[..],
+            &self.transformer.ffn.w2.weight[..],
+            &self.transformer.norm_final.weight[..],
+            &self.transformer.lm_head.weight[..],
+        ];
+        for l in layers {
+            for &w in l {
+                file.write_all(&w.to_le_bytes())?;
+            }
+        }
+        file.flush()?;
+        Ok(())
+    }
+
+    /// Loads model weights from a binary file.
+    pub fn load_weights<P: AsRef<std::path::Path>>(&mut self, path: P) -> std::io::Result<()> {
+        use std::io::Read;
+        let mut file = std::fs::File::open(path)?;
+        let mut magic = [0u8; 4];
+        file.read_exact(&mut magic)?;
+        if &magic != b"QSRX" {
+            return Err(std::io::Error::new(std::io::ErrorKind::InvalidData, "Invalid magic bytes for QSRX"));
+        }
+        let mut u32_buf = [0u8; 4];
+        file.read_exact(&mut u32_buf)?; // version
+        file.read_exact(&mut u32_buf)?; // n_heads
+        file.read_exact(&mut u32_buf)?; // d_model
+
+        let read_f32 = |f: &mut std::fs::File| -> std::io::Result<f32> {
+            let mut buf = [0u8; 4];
+            f.read_exact(&mut buf)?;
+            Ok(f32::from_le_bytes(buf))
+        };
+
+        for w in &mut self.tokenizer.weights.field.charges { *w = read_f32(&mut file)?; }
+        for w in &mut self.tokenizer.weights.field.epsilon { *w = read_f32(&mut file)?; }
+        for w in &mut self.tokenizer.weights.field.omega { *w = read_f32(&mut file)?; }
+        for w in &mut self.tokenizer.weights.bond.w_bond { *w = read_f32(&mut file)?; }
+        self.tokenizer.weights.bond.b_bond = read_f32(&mut file)?;
+        for w in &mut self.tokenizer.weights.measure.w_o { *w = read_f32(&mut file)?; }
+
+        let mut layers = self.transformer.get_layers_mut();
+        for (w_slice, _) in layers.iter_mut() {
+            for w in w_slice.iter_mut() {
+                *w = read_f32(&mut file)?;
+            }
+        }
+        Ok(())
+    }
 }
+
