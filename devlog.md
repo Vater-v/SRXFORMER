@@ -1403,8 +1403,97 @@ Unit & integration verification executed via `cargo test --test chinchilla_data_
 - `test_instruct_chinchilla_token_length`: PASS (instruct token length in 1800..2500, actual: 1901).
 - `test_chinchilla_corpora_100_percent_roundtrip_fidelity`: PASS (100% roundtrip fidelity across all pretrain and instruct lines).
 
-**Total Project Regression:**
-- Full test suite (`cargo test --release`): **85 unit tests and 19 integration tests in 7 suites passed cleanly (0 failures, 0 compiler warnings)**.
+---
+
+## 16. Sprint 2: Quantum-Algebraic Core Rebuild — SRX v05 («Автомат Калашникова»)
+
+**Date:** 2026-09-14  
+**Author:** Senior Systems & HPC Rust Engineer  
+**Project:** SRXformer (`C:\projects\srxformer`)  
+**Module:** SRX v05 Quantum-Algebraic Core (`srxformer::srx_v05`)  
+**Status:** Completed, verified (88 unit tests + 8 integration test suites passed cleanly, 0 warnings)
+
+### 16.1 Executive Summary & CTO Directive Execution
+
+In strict accordance with the CTO directive for Sprint 2, the SRX v05 Quantum-Algebraic core has been rebuilt into an ultra-reliable, mathematically exact "Kalashnikov" architecture:
+1. **Mathematical Rigor (Orthogonal Projector, Not Reflection):**
+   Replaced Householder unitary reflection with the pure **orthogonal projector on the orthogonal complement of the key**:
+   $$\Pi_{k^\perp} = I - k_{\text{rot}} k_{\text{rot}}^T \quad (\|k_{\text{rot}}\|_2 = 1)$$
+   The online associative memory update:
+   $$e_t = v_{\text{raw}} - M_{t-1}^T k_{\text{rot}}$$
+   $$M_t = M_{t-1} \Pi_{k_{\text{rot}}^\perp} + k_{\text{rot}} v_{\text{raw}}^T = M_{t-1} + k_{\text{rot}} e_t^T$$
+   Exact response identity:
+   $$M_t^T k_{\text{rot}} = (I - k_{\text{rot}} k_{\text{rot}}^T) M_{t-1}^T k_{\text{rot}} + v_{\text{raw}} (k_{\text{rot}}^T k_{\text{rot}}) = 0 + v_{\text{raw}} (1) \equiv v_{\text{raw}}$$
+   Zero heuristics, zero trainable gates, zero manual decay $\lambda$. If a key repeats and $v$ matches, $e_t = 0 \implies M_t = M_{t-1}$ (strictly zero memory drift!).
+2. **Purification of MUSIC Resonance from Krylov Distortion:**
+   Removed the parasitic addition $0.5 q^{(0)} + 0.5 U q^{(0)}$ before inverse rotation, which previously contaminated the noise null-space.
+   The pure MUSIC pseudo-spectrum is computed directly on $q_{\text{norm}}$:
+   $$q_{\text{inv}} = U^\dagger(\Theta_t) q_{\text{norm}}$$
+   $$E_{\text{noise}} = q_{\text{inv}}[2]^2 + q_{\text{inv}}[3]^2$$
+   $$w(q) = \min\left( \frac{1}{E_{\text{noise}} + \epsilon}, \; 15.0 \right)$$
+   $$y_{\text{ret}} = M_t^T (U(\Theta_t) q_{\text{norm}}) \cdot w(q)$$
+   When $q = k_{\text{rot}}$, where $k_{\text{rot}} = U(\Theta_t) k_{\text{sig}}$ with $k_{\text{sig}} = [k_0, k_1, 0, 0]$, inverse rotation yields $U^\dagger U k_{\text{sig}} = k_{\text{sig}}$, noise energy $E_{\text{noise}} \equiv 0$, and Dirac resonant gain hits the exact ceiling $w = 15.0$.
+3. **State $O(1)$ Memory — Strictly 160 Bytes:**
+   Completely purged the RLS inverse covariance matrix $P_t$ (128 bytes) and phase momentum buffer $p_{\theta}$ (32 bytes).
+   `SrxState` now stores solely:
+   - $\Theta \in \mathbb{R}^{2 \times 4}$ (32 bytes)
+   - $M \in \mathbb{R}^{2 \times 4 \times 4}$ (128 bytes)
+   - Total state footprint: **EXACTLY 160 bytes** (100% L1D cache resident, $< 0.5\%$ of 32 KB per-core L1D on Intel Xeon E5-2650 v2 Ivy Bridge-EP).
+   - Strictly zero heap allocations on the hot path in `step()`.
+4. **Parameter Parity under Chinchilla Configuration ($V = 65$):**
+   Updated `TransformerConfig::lang_chinchilla()`: $V = 65, d_{\text{model}} = 8, H = 2, d_{\text{head}} = 4, N_{\text{layers}} = 1, d_{\text{ff}} = 6$, RMSNorm, Tied LM Head.
+   - Embeddings: $65 \times 8 = 520$
+   - Attention: $4 \times (8 \times 8) = 256$
+   - RMSNorms: $3 \times 8 = 24$
+   - FFN: $W_1 [6, 8] + W_2 [8, 6] = 48 + 48 = 96$
+   - Total parameters: **EXACTLY 896 parameters** (0.00% delta with Classical Transformer).
+5. **Exact Reversible BPTT (`src/srx_v05/train.rs`):**
+   Implemented the exact closed-form analytical backward pass for the orthogonal projector:
+   $$de_t[c] = \sum_{r=0}^3 k_{\text{rot}}[r] dM_t[r, c]$$
+   $$dv_{\text{raw}}[c] \mathrel{+}= de_t[c]$$
+   $$dk_{\text{rot}}[r] \mathrel{+}= \sum_{c=0}^3 dM_t[r, c] e_t[c] - \sum_{c=0}^3 de_t[c] M_{t-1}[r, c]$$
+   $$dM_{t-1}[r, c] = dM_t[r, c] - k_{\text{rot}}[r] de_t[c]$$
+   Coupled with exact VJP through Monarch Butterfly mixer `apply_butterfly_4_backward`.
+
+---
+
+### 16.2 Hardware Accounting & Architecture Comparison Table
+
+| Metric / Dimension | Classical Baseline | SRX v04 (Spectral) | SRX v05 (Sprint 2 «Kalashnikov») |
+|---|---|---|---|
+| **Context State Complexity** | $O(N \cdot d)$ (KV-Cache) | $O(1)$ (192 bytes) | **$O(1)$ (EXACTLY 160 bytes)** |
+| **State Memory Footprint** | $2 \cdot N \cdot d \cdot 4$ B (up to 640 KB) | $\Theta (32\text{B}) + M (128\text{B}) + \text{gate} (32\text{B})$ | **$\Theta (32\text{B}) + M (128\text{B}) = 160\text{ bytes}$** |
+| **L1D Cache Residency** | Spills to L2/DRAM as $N \to \infty$ | 100% L1D resident (< 0.6%) | **100% L1D resident (< 0.5% of 32 KB)** |
+| **Associative Memory Kernel** | Softmax quadratic attention | Selective decay $\lambda_t M + \gamma_t k v^T$ | **Orthogonal Projector $M_{t-1} + k_{\text{rot}} e_t^T$** |
+| **Response Guarantee** | Softmax statistical mixture | Approximate retrieval | **Exact Algebraic Identity $M_t^T k_{\text{rot}} \equiv v_{\text{raw}}$** |
+| **Memory Drift on Identical Key** | Context degradation | Soft decay drift | **Zero Drift ($e_t = 0 \implies M_t = M_{t-1}$)** |
+| **Subspace Resonance** | None | MUSIC with Krylov distortion | **Undistorted Pure MUSIC ($E_{\text{noise}} \equiv 0 \implies w = 15.0$)** |
+| **Parameters ($V = 65$)** | 896 | 898 (0.22% delta) | **896 (EXACTLY 0.00% delta)** |
+| **FLOPs per Token (Inference)** | $O(N)$ growth | $O(1)$ constant | **$O(1)$ constant (zero heap alloc)** |
+
+---
+
+### 16.3 Verification Suite & Test Results
+
+The Sprint 2 verification suite was executed across all unit and integration targets:
+
+1. **Orthogonal Projector Exact Reproduction:**
+   - Identity $M_t^T k_{\text{rot}} \equiv v_{\text{raw}}$ validated with absolute difference $< 10^{-6}$ across multiple arbitrary unit keys and arbitrary value vectors.
+   - Zero memory drift verified: repeated $(k, v)$ keys produce $e_t \equiv 0$ and preserve $M_t \equiv M_{t-1}$.
+2. **Undistorted MUSIC Resonance Peak:**
+   - Query matching signal subspace key ($q = k_{\text{rot}}$ with $k_{\text{sig}} = [k_0, k_1, 0, 0]$) yields noise energy $E_{\text{noise}} < 10^{-6}$.
+   - Dirac gain triggers precisely to ceiling $w = 15.0$.
+3. **Strict 160-Byte State Size:**
+   - Verified `state.memory_bytes() == 160`.
+4. **Parameter Parity under Chinchilla ($V = 65$):**
+   - Verified `model.param_count() == 896`.
+5. **Exact Analytical VJP Gradient Check:**
+   - Finite difference gradient check on $W_q, W_k, W_v, W_o, W_1, W_2$:
+     $$\max_{i} |\nabla_{\text{ana}} - \nabla_{\text{num}}| < 5 \times 10^{-3}$$
+   - Passed with zero warnings.
+6. **Full Project Regression (`cargo test --release`):**
+   - **88 unit tests** in `src/lib.rs` passed in 0.02s.
+   - **8 integration test suites** in `tests/` passed cleanly (0 failures, 0 warnings).
 
 
 

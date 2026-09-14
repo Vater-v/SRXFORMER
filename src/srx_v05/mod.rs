@@ -1,28 +1,29 @@
-//! # SRX (Super-Resolvent xFormer) Architecture v05: Quantum-Algebraic Core
+//! # SRX (Super-Resolvent xFormer) Architecture v05: Quantum-Algebraic Core («Автомат Калашникова»)
 //!
-//! Features the 5 Core Mathematical Pillars:
-//! 1. Pillar 1: 2nd-Order Associative RLS Memory (Recursive Least Squares):
-//!    - Inverse covariance matrix P_t in R^{4x4} per head (P_0 = delta^{-1} I_{4x4}, lambda = 0.999).
-//!    - Online Sherman-Morrison rank-1 update:
-//!      v_p = P_{t-1} * k_rot
-//!      denom = lambda + k_rot^T * v_p
-//!      k_gain = v_p / denom
+//! Features the Core Mathematical Pillars:
+//! 1. Pillar 1: Pure Orthogonal Complement Projector Memory:
+//!    - Projector onto orthogonal complement of the key:
+//!      \Pi_{k^\perp} = I - k_rot * k_rot^T (where ||k_rot||_2 = 1)
+//!    - Associative memory update:
 //!      e_t = v_raw - M_{t-1}^T * k_rot
-//!      M_t = lambda * M_{t-1} + k_gain * e_t^T
-//!      P_t = (1 / lambda) * (P_{t-1} - k_gain * (k_rot^T * P_{t-1}))
-//!    Zero learned gating parameters: 100% algebraic and mathematically closed.
-//! 2. Pillar 2: Krylov Recurrent Depth (K=2) Resolvent Subspace:
-//!    - q^{(0)} = q_norm
-//!    - q^{(1)} = L2_Norm(0.5 * q^{(0)} + 0.5 * (U_t * q^{(0)}))
-//!    Refines query vector through unitary resolvent subspace before MUSIC projection and retrieval.
-//! 3. Pillar 3: Monarch Butterfly Unitary Mixer with Phase Momentum:
+//!      M_t = M_{t-1} \Pi_{k_rot^\perp} + k_rot * v_raw^T = M_{t-1} + k_rot * e_t^T
+//!    - Exact response identity:
+//!      M_t^T * k_rot = (I - k_rot * k_rot^T) M_{t-1}^T * k_rot + v_raw * (k_rot^T * k_rot) = 0 + v_raw = v_raw
+//!    - Zero heuristics, zero learned gates, zero manual decay hyperparameters lambda.
+//!      If key repeats and v matches: e_t = 0 => M_t = M_{t-1} (strictly zero memory drift!).
+//! 2. Pillar 2: Undistorted MUSIC Subspace Pseudo-Spectrum:
+//!    - q_inv = U^\dagger(\Theta_t) * q_norm
+//!    - E_noise = q_inv[2]^2 + q_inv[3]^2
+//!    - w(q) = min(1 / (E_noise + eps), 15.0)
+//!    - y_ret = M_t^T * (U(\Theta_t) * q_norm) * w(q)
+//!    - When q = k_rot: U^\dagger * U * k_sig = k_sig = [k_0, k_1, 0, 0] => E_noise = 0 => w = 15.0!
+//! 3. Pillar 3: Monarch Butterfly Unitary Factorization:
 //!    - U(\Theta) = B_2(\Theta_2) * P * B_1(\Theta_1)
-//!    - Physical phase momentum: p_{\theta, t} = mu * p_{\theta, t-1} + alpha * (k_norm \odot v_raw[:4])
-//!    - \theta_t = \theta_{t-1} + p_{\theta, t} (mu=0.85, alpha=0.1)
-//! 4. Pillar 4: Zero-Allocation Hot Path & Strictly 288 Bytes Context State:
-//!    Thetas [2, 4] (32 B) + M [2, 4, 4] (128 B) + P [2, 4, 4] (128 B) = EXACTLY 288 bytes (100% L1D cache resident).
+//!    - Physical phase coupling: \theta_t = \theta_{t-1} + \alpha * (k_norm \odot v_raw) (\alpha = 0.1)
+//! 4. Pillar 4: Zero-Allocation Hot Path & Strictly 160 Bytes Context State:
+//!    Thetas [2, 4] (32 B) + M [2, 4, 4] (128 B) = EXACTLY 160 bytes (100% L1D cache resident, < 0.5% of 32 KB).
 //! 5. Pillar 5: Exact Parameter Parity:
-//!    At V=53, d=8, H=2, head_dim=4, d_ff=12: EXACTLY 896 parameters for both Classical Transformer and SRX v05.
+//!    At V=65 (Chinchilla), d=8, H=2, head_dim=4, d_ff=6: EXACTLY 896 parameters (0.00% delta with Classical Transformer).
 
 pub mod attention;
 pub mod model;
@@ -31,9 +32,7 @@ pub mod state;
 pub mod telemetry;
 pub mod train;
 
-pub use attention::{
-    SrxAttention, SRX_ALPHA, SRX_EPS_DEFAULT, SRX_MU, SRX_RLS_DELTA, SRX_RLS_LAMBDA, SRX_W_MAX,
-};
+pub use attention::{SrxAttention, SRX_ALPHA, SRX_EPS_DEFAULT, SRX_W_MAX};
 pub use model::{SrxLayer, SrxTransformer};
 pub use ops::{
     apply_butterfly_4, apply_butterfly_4_backward, apply_butterfly_4_inplace, fast_sin_cos,

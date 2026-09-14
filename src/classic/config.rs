@@ -233,6 +233,13 @@ impl TransformerConfig {
         }
     }
 
+    /// Strict parameter parity configuration for Chinchilla language modeling (EXACTLY 896 parameters).
+    /// Alias to chinchilla() providing explicit naming parity.
+    #[inline]
+    pub fn lang_chinchilla() -> Self {
+        Self::chinchilla()
+    }
+
     /// Micro configuration (~3.5k parameters) with 2 layers and untied head.
     pub fn micro() -> Self {
         Self {
@@ -435,6 +442,14 @@ mod tests {
         assert_eq!(config.validate(), Ok(()));
         let count = config.param_count();
         assert_eq!(count, 896, "Chinchilla config must have exactly 896 parameters!");
+    }
+
+    #[test]
+    fn test_lang_chinchilla_param_count() {
+        let config = TransformerConfig::lang_chinchilla();
+        assert_eq!(config.validate(), Ok(()));
+        let count = config.param_count();
+        assert_eq!(count, 896, "Lang Chinchilla config must have exactly 896 parameters!");
     }
 
     #[test]

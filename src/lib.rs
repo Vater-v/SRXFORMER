@@ -89,7 +89,7 @@ pub use srx_v04::{
     SRX_W_MAX as SRX_V04_W_MAX,
 };
 
-// Re-export SRX v05 (Quantum-Algebraic Core: RLS Memory, Krylov Resolvent Depth, Monarch Phase Momentum)
+// Re-export SRX v05 (Quantum-Algebraic Core: Pure Orthogonal Projector, Undistorted MUSIC, 160-byte state)
 pub use srx_v05::{
     apply_butterfly_4 as srx_v05_apply_butterfly_4,
     apply_butterfly_4_backward as srx_v05_apply_butterfly_4_backward,
@@ -103,9 +103,7 @@ pub use srx_v05::{
     SrxState as SrxStateV05, SrxTelemetryReport as SrxTelemetryReportV05,
     SrxTrainWorkspace as SrxTrainWorkspaceV05, SrxTransformer as SrxTransformerV05,
     SrxWorkspace as SrxWorkspaceV05, SRX_ALPHA as SRX_V05_ALPHA,
-    SRX_EPS_DEFAULT as SRX_V05_EPS_DEFAULT, SRX_MU as SRX_V05_MU,
-    SRX_RLS_DELTA as SRX_V05_RLS_DELTA, SRX_RLS_LAMBDA as SRX_V05_RLS_LAMBDA,
-    SRX_W_MAX as SRX_V05_W_MAX,
+    SRX_EPS_DEFAULT as SRX_V05_EPS_DEFAULT, SRX_W_MAX as SRX_V05_W_MAX,
 };
 
 // Primary SRX exports map to v02 (preserves 100% test compatibility)

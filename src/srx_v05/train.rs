@@ -1,7 +1,6 @@
 //! High-performance Analytical Reversible Backpropagation and AdamW Optimizer Engine for SRXFORMER v05.
-//! Implements exact analytical gradients through 2nd-Order Associative RLS-Memory (Sherman-Morrison update),
-//! Krylov Recurrent Depth (K=2) Resolvent Query Refinement, Monarch Butterfly Unitary Factorization,
-//! and Phase Momentum Dynamics.
+//! Implements exact analytical gradients through Pure Orthogonal Complement Projector Memory,
+//! Undistorted MUSIC Subspace Pseudo-Spectrum, and Monarch Butterfly Unitary Factorization.
 
 use std::time::Instant;
 
@@ -10,24 +9,24 @@ use crate::classic::ops::softmax;
 use crate::classic::telemetry::TrainTelemetry;
 use crate::classic::tokenizer::EOS_TOKEN_ID;
 
-use super::attention::{SRX_ALPHA, SRX_MU, SRX_RLS_DELTA, SRX_RLS_LAMBDA, SRX_W_MAX};
+use super::attention::{SRX_ALPHA, SRX_W_MAX};
 use super::model::SrxTransformer;
 use super::ops::{
     apply_butterfly_4, apply_butterfly_4_backward, l2_normalize, l2_normalize_backward,
 };
 
-/// Gradient storage for all 896 trainable parameters of SrxTransformer v05.
+/// Gradient storage for all trainable parameters of SrxTransformer v05 (896 parameters under Chinchilla).
 #[derive(Debug, Clone)]
 pub struct SrxGrad {
-    pub token_embeddings: Vec<f32>, // [vocab_size, d_model] = 53 * 8 = 424
+    pub token_embeddings: Vec<f32>, // [vocab_size, d_model] = 65 * 8 = 520
     pub attn_norm_gamma: Vec<f32>,  // [d_model] = 8
     pub w_q: Vec<f32>,              // [d_model, d_model] = 64
     pub w_k: Vec<f32>,              // [d_model, d_model] = 64
     pub w_v: Vec<f32>,              // [d_model, d_model] = 64
     pub w_o: Vec<f32>,              // [d_model, d_model] = 64
     pub ffn_norm_gamma: Vec<f32>,   // [d_model] = 8
-    pub w_1: Vec<f32>,              // [d_ff, d_model] = 12 * 8 = 96
-    pub w_2: Vec<f32>,              // [d_model, d_ff] = 8 * 12 = 96
+    pub w_1: Vec<f32>,              // [d_ff, d_model] = 6 * 8 = 48
+    pub w_2: Vec<f32>,              // [d_model, d_ff] = 8 * 6 = 48
     pub final_norm_gamma: Vec<f32>, // [d_model] = 8
 
     pub vocab_size: usize,
@@ -102,9 +101,9 @@ impl SrxGrad {
             &self.w_2,
             &self.final_norm_gamma,
         ];
-        for s in slices {
-            for &x in s {
-                sum_sq += x * x;
+        for slice in slices {
+            for &val in slice {
+                sum_sq += val * val;
             }
         }
         sum_sq.sqrt()
@@ -112,7 +111,7 @@ impl SrxGrad {
 
     pub fn clip_grad_norm(&mut self, max_norm: f32) -> f32 {
         let norm = self.l2_norm();
-        if norm > max_norm && norm > 1e-8 {
+        if norm > max_norm && norm > 1e-12 {
             let scale = max_norm / norm;
             let slices: [&mut [f32]; 10] = [
                 &mut self.token_embeddings,
@@ -126,9 +125,9 @@ impl SrxGrad {
                 &mut self.w_2,
                 &mut self.final_norm_gamma,
             ];
-            for s in slices {
-                for x in s.iter_mut() {
-                    *x *= scale;
+            for slice in slices {
+                for val in slice.iter_mut() {
+                    *val *= scale;
                 }
             }
         }
@@ -136,7 +135,7 @@ impl SrxGrad {
     }
 }
 
-/// Pre-allocated workspace for SRX v05 forward activations and backward adjoints.
+/// Pre-allocated workspace for analytical forward-backward unrolling over sequence.
 #[derive(Debug, Clone)]
 pub struct SrxTrainWorkspace {
     pub max_seq_len: usize,
@@ -159,26 +158,15 @@ pub struct SrxTrainWorkspace {
     pub norm_k: Vec<f32>,       // [max_seq_len, n_heads]
     pub q_norm: Vec<f32>,       // [max_seq_len, n_heads, head_dim]
     pub k_norm: Vec<f32>,       // [max_seq_len, n_heads, head_dim]
-    pub p_thetas: Vec<f32>,     // [max_seq_len, n_heads, 4]
     pub thetas: Vec<f32>,       // [max_seq_len, n_heads, 4]
     pub k_rot: Vec<f32>,        // [max_seq_len, n_heads, head_dim]
 
-    // RLS Sherman-Morrison state history
-    pub v_p: Vec<f32>,          // [max_seq_len, n_heads, head_dim]
-    pub denom: Vec<f32>,        // [max_seq_len, n_heads]
-    pub k_gain: Vec<f32>,       // [max_seq_len, n_heads, head_dim]
+    // Pure Orthogonal Projector state history
     pub v_hat: Vec<f32>,        // [max_seq_len, n_heads, head_dim]
     pub e_t: Vec<f32>,          // [max_seq_len, n_heads, head_dim]
     pub m: Vec<f32>,            // [max_seq_len, n_heads, 16]
-    pub p_mat: Vec<f32>,        // [max_seq_len, n_heads, 16]
 
-    // Krylov Recurrent Depth buffers (K=2)
-    pub u_q0: Vec<f32>,         // [max_seq_len, n_heads, head_dim]
-    pub q_combo: Vec<f32>,      // [max_seq_len, n_heads, head_dim]
-    pub norm_q_combo: Vec<f32>, // [max_seq_len, n_heads]
-    pub q_1: Vec<f32>,          // [max_seq_len, n_heads, head_dim]
-
-    // MUSIC noise projector and retrieval
+    // Undistorted MUSIC noise projector and retrieval
     pub q_inv: Vec<f32>,        // [max_seq_len, n_heads, head_dim]
     pub noise_energy: Vec<f32>, // [max_seq_len, n_heads]
     pub w: Vec<f32>,            // [max_seq_len, n_heads]
@@ -251,20 +239,11 @@ impl SrxTrainWorkspace {
             norm_k: vec![0.0; s * n_heads],
             q_norm: vec![0.0; s * n_heads * head_dim],
             k_norm: vec![0.0; s * n_heads * head_dim],
-            p_thetas: vec![0.0; s * n_heads * 4],
             thetas: vec![0.0; s * n_heads * 4],
             k_rot: vec![0.0; s * n_heads * head_dim],
-            v_p: vec![0.0; s * n_heads * head_dim],
-            denom: vec![0.0; s * n_heads],
-            k_gain: vec![0.0; s * n_heads * head_dim],
             v_hat: vec![0.0; s * n_heads * head_dim],
             e_t: vec![0.0; s * n_heads * head_dim],
             m: vec![0.0; s * n_heads * head_dim * head_dim],
-            p_mat: vec![0.0; s * n_heads * head_dim * head_dim],
-            u_q0: vec![0.0; s * n_heads * head_dim],
-            q_combo: vec![0.0; s * n_heads * head_dim],
-            norm_q_combo: vec![0.0; s * n_heads],
-            q_1: vec![0.0; s * n_heads * head_dim],
             q_inv: vec![0.0; s * n_heads * head_dim],
             noise_energy: vec![0.0; s * n_heads],
             w: vec![0.0; s * n_heads],
@@ -449,51 +428,50 @@ pub fn forward_loss(
         ws.x_0[t * d..(t + 1) * d].copy_from_slice(&model.token_embeddings[emb_off..emb_off + d]);
     }
 
-    // 2. Pre-Attention RMSNorm
+    // 2. Pre-Attention RMSNorm & Scale: a = RMSNorm(x_0) * gamma_attn
     for t in 0..seq_len {
-        let x_tok = &ws.x_0[t * d..(t + 1) * d];
         let mut sum_sq = 0.0f32;
-        for &val in x_tok {
+        for c in 0..d {
+            let val = ws.x_0[t * d + c];
             sum_sq += val * val;
         }
         let rms = (sum_sq / d as f32 + eps_norm).sqrt();
         ws.rms_attn[t] = rms;
         let inv_rms = 1.0 / rms;
-
         for c in 0..d {
-            let x_n = x_tok[c] * inv_rms;
-            ws.x_0_norm[t * d + c] = x_n;
-            ws.a[t * d + c] = x_n * layer.attn_norm_gamma[c];
+            let norm_val = ws.x_0[t * d + c] * inv_rms;
+            ws.x_0_norm[t * d + c] = norm_val;
+            ws.a[t * d + c] = norm_val * layer.attn_norm_gamma[c];
         }
     }
 
-    // 3. Q, K, V linear projections
+    // 3. QKV Projections: q_raw = W_q * a, k_raw = W_k * a, v_raw = W_v * a
     for t in 0..seq_len {
         let a_tok = &ws.a[t * d..(t + 1) * d];
         for i in 0..d {
             let row_off = i * d;
-            let mut sq = 0.0f32;
-            let mut sk = 0.0f32;
-            let mut sv = 0.0f32;
+            let mut sum_q = 0.0f32;
+            let mut sum_k = 0.0f32;
+            let mut sum_v = 0.0f32;
             for j in 0..d {
                 let aj = a_tok[j];
-                sq += layer.attn.w_q[row_off + j] * aj;
-                sk += layer.attn.w_k[row_off + j] * aj;
-                sv += layer.attn.w_v[row_off + j] * aj;
+                sum_q += layer.attn.w_q[row_off + j] * aj;
+                sum_k += layer.attn.w_k[row_off + j] * aj;
+                sum_v += layer.attn.w_v[row_off + j] * aj;
             }
-            ws.q_raw[t * d + i] = sq;
-            ws.k_raw[t * d + i] = sk;
-            ws.v_raw[t * d + i] = sv;
+            ws.q_raw[t * d + i] = sum_q;
+            ws.k_raw[t * d + i] = sum_k;
+            ws.v_raw[t * d + i] = sum_v;
         }
     }
 
-    // 4. Per-head SRX Recurrence with 2nd-Order RLS, Krylov Depth, Butterfly Mixer & Phase Momentum
-    for h in 0..n_heads {
-        let h_off = h * head_dim;
-        let span_theta = 4;
-        let span_m = head_dim * head_dim;
+    // 4. Per-head SRX Recurrence with Pure Orthogonal Projector and Clean MUSIC
+    let span_theta = 4;
+    let span_m = head_dim * head_dim;
 
-        for t in 0..seq_len {
+    for t in 0..seq_len {
+        for h in 0..n_heads {
+            let h_off = h * head_dim;
             let q_raw_h = &ws.q_raw[t * d + h_off..t * d + h_off + head_dim];
             let k_raw_h = &ws.k_raw[t * d + h_off..t * d + h_off + head_dim];
             let v_raw_h = &ws.v_raw[t * d + h_off..t * d + h_off + head_dim];
@@ -502,9 +480,6 @@ pub fn forward_loss(
             let k_norm_off = (t * n_heads + h) * head_dim;
             let thetas_off = (t * n_heads + h) * span_theta;
             let m_off = (t * n_heads + h) * span_m;
-            let p_mat_off = (t * n_heads + h) * span_m;
-            let v_p_off = (t * n_heads + h) * head_dim;
-            let k_gain_off = (t * n_heads + h) * head_dim;
             let v_hat_off = (t * n_heads + h) * head_dim;
             let e_off = (t * n_heads + h) * head_dim;
 
@@ -522,18 +497,14 @@ pub fn forward_loss(
             ws.norm_q[t * n_heads + h] = n_q;
             ws.norm_k[t * n_heads + h] = n_k;
 
-            // b) Phase Momentum update:
-            // p_{\theta, t} = \mu * p_{\theta, t-1} + \alpha * (k_norm \odot v_raw_h)
-            // \theta_t = \theta_{t-1} + p_{\theta, t}
+            // b) Dynamic Phase Coupling:
+            // \theta_t = \theta_{t-1} + \alpha * (k_norm \odot v_raw_h)
             let prev_th_off = (t.saturating_sub(1) * n_heads + h) * span_theta;
             for i in 0..4 {
-                let prev_p = if t > 0 { ws.p_thetas[prev_th_off + i] } else { 0.0 };
                 let prev_th = if t > 0 { ws.thetas[prev_th_off + i] } else { 0.0 };
                 let k_val = ws.k_norm[k_norm_off + i];
                 let v_val = v_raw_h[i];
-                let p_curr = SRX_MU * prev_p + SRX_ALPHA * (k_val * v_val);
-                ws.p_thetas[thetas_off + i] = p_curr;
-                ws.thetas[thetas_off + i] = prev_th + p_curr;
+                ws.thetas[thetas_off + i] = prev_th + SRX_ALPHA * (k_val * v_val);
             }
 
             let curr_thetas: &[f32; 4] = ws.thetas[thetas_off..thetas_off + 4].try_into().unwrap();
@@ -544,45 +515,9 @@ pub fn forward_loss(
             apply_butterfly_4(k_norm_arr, curr_thetas, false, &mut k_rot_arr);
             ws.k_rot[k_norm_off..k_norm_off + 4].copy_from_slice(&k_rot_arr);
 
-            // d) 2nd-Order Associative RLS Memory (Sherman-Morrison update):
-            let pp_off = (t.saturating_sub(1) * n_heads + h) * span_m;
+            // d) Pure Orthogonal Projector Associative Memory Update:
+            // v_hat = M_{t-1}^T * k_rot
             let pm_off = (t.saturating_sub(1) * n_heads + h) * span_m;
-
-            // 1. v_p = P_{t-1} * k_rot
-            let mut v_p_arr = [0.0f32; 4];
-            for r in 0..4 {
-                let mut sum = 0.0f32;
-                for c in 0..4 {
-                    let p_val = if t > 0 {
-                        ws.p_mat[pp_off + r * 4 + c]
-                    } else if r == c {
-                        1.0 / SRX_RLS_DELTA
-                    } else {
-                        0.0
-                    };
-                    sum += p_val * k_rot_arr[c];
-                }
-                v_p_arr[r] = sum;
-            }
-            ws.v_p[v_p_off..v_p_off + 4].copy_from_slice(&v_p_arr);
-
-            // 2. denom = \lambda + k_rot^T * v_p
-            let mut k_dot_vp = 0.0f32;
-            for i in 0..4 {
-                k_dot_vp += k_rot_arr[i] * v_p_arr[i];
-            }
-            let denom_val = SRX_RLS_LAMBDA + k_dot_vp;
-            let inv_denom = 1.0 / denom_val;
-            ws.denom[t * n_heads + h] = denom_val;
-
-            // 3. k_gain = v_p / denom
-            let mut k_gain_arr = [0.0f32; 4];
-            for i in 0..4 {
-                k_gain_arr[i] = v_p_arr[i] * inv_denom;
-            }
-            ws.k_gain[k_gain_off..k_gain_off + 4].copy_from_slice(&k_gain_arr);
-
-            // 4. v_hat = M_{t-1}^T * k_rot
             let mut v_hat_arr = [0.0f32; 4];
             for col in 0..4 {
                 let mut sum_v = 0.0f32;
@@ -596,94 +531,41 @@ pub fn forward_loss(
             }
             ws.v_hat[v_hat_off..v_hat_off + 4].copy_from_slice(&v_hat_arr);
 
-            // 5. Memory update: M_t = \lambda * M_{t-1} + k_gain * e_t^T
+            // M_t = M_{t-1} + k_rot * e_t^T
             for row in 0..4 {
-                let kg = k_gain_arr[row];
+                let kr = k_rot_arr[row];
                 for col in 0..4 {
                     let idx = row * 4 + col;
                     let p_val = if t > 0 { ws.m[pm_off + idx] } else { 0.0 };
                     let e_val = ws.e_t[e_off + col];
-                    ws.m[m_off + idx] = SRX_RLS_LAMBDA * p_val + kg * e_val;
+                    ws.m[m_off + idx] = p_val + kr * e_val;
                 }
             }
 
-            // 6. Covariance update: P_t = (1 / \lambda) * (P_{t-1} - k_gain * (k_rot^T * P_{t-1}))
-            let mut k_trans_p = [0.0f32; 4];
-            for col in 0..4 {
-                let mut sum = 0.0f32;
-                for row in 0..4 {
-                    let p_val = if t > 0 {
-                        ws.p_mat[pp_off + row * 4 + col]
-                    } else if row == col {
-                        1.0 / SRX_RLS_DELTA
-                    } else {
-                        0.0
-                    };
-                    sum += k_rot_arr[row] * p_val;
-                }
-                k_trans_p[col] = sum;
-            }
-
-            let inv_lambda = 1.0 / SRX_RLS_LAMBDA;
-            for row in 0..4 {
-                let kg = k_gain_arr[row];
-                for col in 0..4 {
-                    let idx = row * 4 + col;
-                    let p_val = if t > 0 {
-                        ws.p_mat[pp_off + idx]
-                    } else if row == col {
-                        1.0 / SRX_RLS_DELTA
-                    } else {
-                        0.0
-                    };
-                    ws.p_mat[p_mat_off + idx] = inv_lambda * (p_val - kg * k_trans_p[col]);
-                }
-            }
-
-            // e) Krylov Recurrent Depth (K=2):
-            // q^{(0)} = q_norm
-            // u_q0 = U_t * q^{(0)}
+            // e) Undistorted MUSIC Noise Subspace Projection:
+            // q_inv = U^\dagger(Theta_t) * q_norm
             let q_norm_arr: &[f32; 4] = ws.q_norm[q_norm_off..q_norm_off + 4].try_into().unwrap();
-            let mut u_q0_arr = [0.0f32; 4];
-            apply_butterfly_4(q_norm_arr, curr_thetas, false, &mut u_q0_arr);
-            ws.u_q0[q_norm_off..q_norm_off + 4].copy_from_slice(&u_q0_arr);
-
-            // q_combo = 0.5 * q^{(0)} + 0.5 * u_q0
-            let mut q_combo_arr = [0.0f32; 4];
-            for i in 0..4 {
-                q_combo_arr[i] = 0.5 * q_norm_arr[i] + 0.5 * u_q0_arr[i];
-            }
-            ws.q_combo[q_norm_off..q_norm_off + 4].copy_from_slice(&q_combo_arr);
-
-            // q^{(1)} = L2_Norm(q_combo)
-            let mut q_1_arr = [0.0f32; 4];
-            let norm_combo = l2_normalize(&q_combo_arr, &mut q_1_arr, 1e-12);
-            ws.norm_q_combo[t * n_heads + h] = norm_combo;
-            ws.q_1[q_norm_off..q_norm_off + 4].copy_from_slice(&q_1_arr);
-
-            // f) Noise subspace projection using q^{(1)}:
-            // q_inv = U^\dagger(Theta_t) * q^{(1)}
             let mut q_inv_arr = [0.0f32; 4];
-            apply_butterfly_4(&q_1_arr, curr_thetas, true, &mut q_inv_arr);
+            apply_butterfly_4(q_norm_arr, curr_thetas, true, &mut q_inv_arr);
             ws.q_inv[q_norm_off..q_norm_off + 4].copy_from_slice(&q_inv_arr);
 
             // Signal rank r = 2; noise energy = ||q_inv[2..4]||^2
             let noise_energy = q_inv_arr[2] * q_inv_arr[2] + q_inv_arr[3] * q_inv_arr[3];
             ws.noise_energy[t * n_heads + h] = noise_energy;
 
-            // Dirac-like resonant gain with hard clipping
+            // Dirac-like resonant gain with hard clipping at SRX_W_MAX (15.0)
             let w_val = 1.0 / (noise_energy + eps_srx);
             let w_clamped = w_val.min(SRX_W_MAX);
             ws.w[t * n_heads + h] = w_val;
             ws.w_clamped[t * n_heads + h] = w_clamped;
 
-            // g) Memory retrieval using q^{(1)}:
-            // q_rot = U(Theta_t) * q^{(1)}
+            // f) Memory retrieval:
+            // q_rot = U(Theta_t) * q_norm
             let mut q_rot_arr = [0.0f32; 4];
-            apply_butterfly_4(&q_1_arr, curr_thetas, false, &mut q_rot_arr);
+            apply_butterfly_4(q_norm_arr, curr_thetas, false, &mut q_rot_arr);
             ws.q_rot[q_norm_off..q_norm_off + 4].copy_from_slice(&q_rot_arr);
 
-            // y_ret = M_t^T q_rot
+            // y_ret = M_t^T * q_rot
             let y_ret_off = (t * n_heads + h) * head_dim;
             for col in 0..4 {
                 let mut sum_m = 0.0f32;
@@ -722,97 +604,106 @@ pub fn forward_loss(
                 sum_o += layer.attn.w_o[row_off + j] * y_tok[j];
             }
             ws.attn_out[t * d + i] = sum_o;
-            ws.x_mid[t * d + i] = ws.x_0[t * d + i] + sum_o;
         }
     }
 
-    // 6. Pre-FFN RMSNorm
+    // 6. First Residual: x_mid = x_0 + attn_out
+    for i in 0..seq_len * d {
+        ws.x_mid[i] = ws.x_0[i] + ws.attn_out[i];
+    }
+
+    // 7. Pre-FFN RMSNorm & Scale: b = RMSNorm(x_mid) * gamma_ffn
     for t in 0..seq_len {
-        let x_tok = &ws.x_mid[t * d..(t + 1) * d];
         let mut sum_sq = 0.0f32;
-        for &val in x_tok {
+        for c in 0..d {
+            let val = ws.x_mid[t * d + c];
             sum_sq += val * val;
         }
         let rms = (sum_sq / d as f32 + eps_norm).sqrt();
         ws.rms_ffn[t] = rms;
         let inv_rms = 1.0 / rms;
-
         for c in 0..d {
-            let x_n = x_tok[c] * inv_rms;
-            ws.x_mid_norm[t * d + c] = x_n;
-            ws.b[t * d + c] = x_n * layer.ffn_norm_gamma[c];
+            let norm_val = ws.x_mid[t * d + c] * inv_rms;
+            ws.x_mid_norm[t * d + c] = norm_val;
+            ws.b[t * d + c] = norm_val * layer.ffn_norm_gamma[c];
         }
     }
 
-    // 7. MLP Forward (W_1 -> ReLU -> W_2)
+    // 8. FFN: z = W_1 * b, h = ReLU(z), f = W_2 * h
     for t in 0..seq_len {
         let b_tok = &ws.b[t * d..(t + 1) * d];
         for i in 0..d_ff {
             let row_off = i * d;
-            let mut sum_1 = 0.0f32;
+            let mut sum_z = 0.0f32;
             for j in 0..d {
-                sum_1 += layer.mlp.w_1[row_off + j] * b_tok[j];
+                sum_z += layer.mlp.w_1[row_off + j] * b_tok[j];
             }
-            ws.z[t * d_ff + i] = sum_1;
-            ws.h[t * d_ff + i] = if sum_1 > 0.0 { sum_1 } else { 0.0 };
+            ws.z[t * d_ff + i] = sum_z;
+            ws.h[t * d_ff + i] = sum_z.max(0.0);
         }
 
         let h_tok = &ws.h[t * d_ff..(t + 1) * d_ff];
         for i in 0..d {
             let row_off = i * d_ff;
-            let mut sum_2 = 0.0f32;
+            let mut sum_f = 0.0f32;
             for j in 0..d_ff {
-                sum_2 += layer.mlp.w_2[row_off + j] * h_tok[j];
+                sum_f += layer.mlp.w_2[row_off + j] * h_tok[j];
             }
-            ws.f[t * d + i] = sum_2;
-            ws.x_1[t * d + i] = ws.x_mid[t * d + i] + sum_2;
+            ws.f[t * d + i] = sum_f;
         }
     }
 
-    // 8. Final RMSNorm
+    // 9. Second Residual: x_1 = x_mid + f
+    for i in 0..seq_len * d {
+        ws.x_1[i] = ws.x_mid[i] + ws.f[i];
+    }
+
+    // 10. Final RMSNorm: u = RMSNorm(x_1) * gamma_final
     for t in 0..seq_len {
-        let x_tok = &ws.x_1[t * d..(t + 1) * d];
         let mut sum_sq = 0.0f32;
-        for &val in x_tok {
+        for c in 0..d {
+            let val = ws.x_1[t * d + c];
             sum_sq += val * val;
         }
         let rms = (sum_sq / d as f32 + eps_norm).sqrt();
         ws.rms_final[t] = rms;
         let inv_rms = 1.0 / rms;
-
         for c in 0..d {
-            let x_n = x_tok[c] * inv_rms;
-            ws.x_1_norm[t * d + c] = x_n;
-            ws.u[t * d + c] = x_n * model.final_norm_gamma[c];
+            let norm_val = ws.x_1[t * d + c] * inv_rms;
+            ws.x_1_norm[t * d + c] = norm_val;
+            ws.u[t * d + c] = norm_val * model.final_norm_gamma[c];
         }
     }
 
-    // 9. Tied LM Head & Cross-Entropy Loss
+    // 11. Tied LM Head & Softmax Cross-Entropy Loss
     let mut total_loss = 0.0f32;
-    for t in 0..seq_len - 1 {
+    let n_targets = seq_len - 1;
+
+    for t in 0..seq_len {
         let u_tok = &ws.u[t * d..(t + 1) * d];
-        for i in 0..v {
-            let row_off = i * d;
-            let mut dot = 0.0f32;
-            for j in 0..d {
-                dot += model.token_embeddings[row_off + j] * u_tok[j];
+        for tok in 0..v {
+            let emb_off = tok * d;
+            let mut logit = 0.0f32;
+            for c in 0..d {
+                logit += u_tok[c] * model.token_embeddings[emb_off + c];
             }
-            ws.logits[t * v + i] = dot;
+            ws.logits[t * v + tok] = logit;
         }
 
-        let target_tok = tokens[t + 1];
-        let probs_tok = &mut ws.probs[t * v..(t + 1) * v];
-        probs_tok.copy_from_slice(&ws.logits[t * v..(t + 1) * v]);
-        softmax(probs_tok);
+        ws.probs[t * v..(t + 1) * v].copy_from_slice(&ws.logits[t * v..(t + 1) * v]);
+        softmax(&mut ws.probs[t * v..(t + 1) * v]);
 
-        let p = probs_tok[target_tok].max(1e-12);
-        total_loss -= p.ln();
+        if t < n_targets {
+            let target_tok = tokens[t + 1];
+            let p = ws.probs[t * v + target_tok].max(1e-12);
+            total_loss -= p.ln();
+        }
     }
 
-    total_loss / (seq_len - 1) as f32
+    total_loss / n_targets as f32
 }
 
-/// Sequence backward pass computing exact analytical gradients via reversible BPTT.
+/// Exact Analytical Reversible BPTT backward pass for SRXFORMER v05.
 pub fn backward_loss(
     model: &SrxTransformer,
     tokens: &[usize],
@@ -822,18 +713,19 @@ pub fn backward_loss(
 ) {
     let seq_len = tokens.len();
     assert!(seq_len >= 2);
-    assert!(seq_len <= ws.max_seq_len);
+    let n_targets = seq_len - 1;
+    let scale = 1.0 / n_targets as f32;
 
     let d = ws.d_model;
     let d_ff = ws.d_ff;
     let v = ws.vocab_size;
     let n_heads = ws.n_heads;
     let head_dim = ws.head_dim;
-    let inv_steps = 1.0 / (seq_len - 1) as f32;
+    let _eps_norm = model.config.eps;
 
     let layer = &model.layers[0];
 
-    // Reset adjoint buffers
+    // Reset workspace backward buffers
     ws.d_logits.fill(0.0);
     ws.d_u.fill(0.0);
     ws.d_x_1.fill(0.0);
@@ -851,131 +743,131 @@ pub fn backward_loss(
     ws.d_a.fill(0.0);
     ws.d_x_0.fill(0.0);
 
-    // 1. Cross-entropy loss derivative w.r.t logits
-    for t in 0..seq_len - 1 {
+    // 1. Cross-entropy gradient on logits
+    for t in 0..n_targets {
         let target_tok = tokens[t + 1];
-        let probs_tok = &ws.probs[t * v..(t + 1) * v];
-        let d_logits_tok = &mut ws.d_logits[t * v..(t + 1) * v];
-
-        for i in 0..v {
-            let p = probs_tok[i];
-            let indicator = if i == target_tok { 1.0 } else { 0.0 };
-            d_logits_tok[i] = (p - indicator) * inv_steps;
+        let logits_off = t * v;
+        for tok in 0..v {
+            let p = ws.probs[logits_off + tok];
+            let grad_val = if tok == target_tok {
+                (p - 1.0) * scale
+            } else {
+                p * scale
+            };
+            ws.d_logits[logits_off + tok] = grad_val;
         }
     }
 
-    // 2. LM Head projection backward -> d_u & grad.token_embeddings
-    for t in 0..seq_len {
-        let d_logits_tok = &ws.d_logits[t * v..(t + 1) * v];
+    // 2. Backward through Tied LM Head: logits[t, tok] = u[t] dot E[tok]
+    for t in 0..n_targets {
         let u_tok = &ws.u[t * d..(t + 1) * d];
-
-        for tok_idx in 0..v {
-            let d_l = d_logits_tok[tok_idx];
-            if d_l != 0.0 {
-                let w_emb = &model.token_embeddings[tok_idx * d..(tok_idx + 1) * d];
-                let grad_emb = &mut grad.token_embeddings[tok_idx * d..(tok_idx + 1) * d];
-                for c in 0..d {
-                    ws.d_u[t * d + c] += d_l * w_emb[c];
-                    grad_emb[c] += d_l * u_tok[c];
-                }
+        for tok in 0..v {
+            let dl = ws.d_logits[t * v + tok];
+            if dl == 0.0 {
+                continue;
+            }
+            let emb_off = tok * d;
+            for c in 0..d {
+                grad.token_embeddings[emb_off + c] += dl * u_tok[c];
+                ws.d_u[t * d + c] += dl * model.token_embeddings[emb_off + c];
             }
         }
     }
 
-    // 3. Final RMSNorm backward -> d_x_1 & grad.final_norm_gamma
+    // 3. Backward through Final RMSNorm: u = RMSNorm(x_1) * gamma_final
     for t in 0..seq_len {
         let rms = ws.rms_final[t];
         if rms <= 1e-12 {
             continue;
         }
         let inv_rms = 1.0 / rms;
-        let x_norm = &ws.x_1_norm[t * d..(t + 1) * d];
-        let d_u_tok = &ws.d_u[t * d..(t + 1) * d];
-
-        let mut dot_du_gamma_x = 0.0f32;
+        let mut dot = 0.0f32;
         for c in 0..d {
-            let gamma = model.final_norm_gamma[c];
-            grad.final_norm_gamma[c] += d_u_tok[c] * x_norm[c];
-            dot_du_gamma_x += d_u_tok[c] * gamma * x_norm[c];
+            let du = ws.d_u[t * d + c];
+            let x1_norm = ws.x_1_norm[t * d + c];
+            grad.final_norm_gamma[c] += du * x1_norm;
+
+            let d_norm = du * model.final_norm_gamma[c];
+            dot += d_norm * ws.x_1[t * d + c];
         }
 
+        let mean_dot = dot / (d as f32 * rms * rms);
         for c in 0..d {
-            let gamma = model.final_norm_gamma[c];
-            let d_norm = d_u_tok[c] * gamma;
-            ws.d_x_1[t * d + c] = inv_rms * (d_norm - x_norm[c] * dot_du_gamma_x / d as f32);
+            let d_norm = ws.d_u[t * d + c] * model.final_norm_gamma[c];
+            let dx1 = inv_rms * (d_norm - ws.x_1[t * d + c] * mean_dot);
+            ws.d_x_1[t * d + c] = dx1;
+            ws.d_x_mid[t * d + c] += dx1;
+            ws.d_f[t * d + c] = dx1;
         }
     }
 
-    // 4. Residual connection & MLP backward
+    // 4. Backward through FFN: f = W_2 * h, h = ReLU(z), z = W_1 * b
     for t in 0..seq_len {
-        for c in 0..d {
-            let d_x1_val = ws.d_x_1[t * d + c];
-            ws.d_x_mid[t * d + c] += d_x1_val;
-            ws.d_f[t * d + c] += d_x1_val;
-        }
-
-        // Backward through MLP W_2
+        let df_tok = &ws.d_f[t * d..(t + 1) * d];
         let h_tok = &ws.h[t * d_ff..(t + 1) * d_ff];
-        for c in 0..d {
-            let df_val = ws.d_f[t * d + c];
+
+        // Gradient for W_2 and adjoint for h
+        for i in 0..d {
+            let df_val = df_tok[i];
+            let row_off = i * d_ff;
             for j in 0..d_ff {
-                grad.w_2[c * d_ff + j] += df_val * h_tok[j];
-                ws.d_h[t * d_ff + j] += df_val * layer.mlp.w_2[c * d_ff + j];
+                grad.w_2[row_off + j] += df_val * h_tok[j];
+                ws.d_h[t * d_ff + j] += df_val * layer.mlp.w_2[row_off + j];
             }
         }
 
-        // Backward through ReLU
+        // Backward through ReLU: z -> h
         for j in 0..d_ff {
-            ws.d_z[t * d_ff + j] = if ws.z[t * d_ff + j] > 0.0 {
-                ws.d_h[t * d_ff + j]
-            } else {
-                0.0
-            };
+            let z_val = ws.z[t * d_ff + j];
+            let dh_val = ws.d_h[t * d_ff + j];
+            ws.d_z[t * d_ff + j] = if z_val > 0.0 { dh_val } else { 0.0 };
         }
 
-        // Backward through MLP W_1
+        // Gradient for W_1 and adjoint for b
+        let dz_tok = &ws.d_z[t * d_ff..(t + 1) * d_ff];
         let b_tok = &ws.b[t * d..(t + 1) * d];
-        for j in 0..d_ff {
-            let dz_val = ws.d_z[t * d_ff + j];
-            for k in 0..d {
-                grad.w_1[j * d + k] += dz_val * b_tok[k];
-                ws.d_b[t * d + k] += dz_val * layer.mlp.w_1[j * d + k];
+        for i in 0..d_ff {
+            let dz_val = dz_tok[i];
+            let row_off = i * d;
+            for j in 0..d {
+                grad.w_1[row_off + j] += dz_val * b_tok[j];
+                ws.d_b[t * d + j] += dz_val * layer.mlp.w_1[row_off + j];
             }
         }
-    }
 
-    // 5. Pre-FFN RMSNorm -> d_x_mid & ffn_norm_gamma
-    for t in 0..seq_len {
+        // Backward through Pre-FFN RMSNorm: b = RMSNorm(x_mid) * gamma_ffn
         let rms = ws.rms_ffn[t];
         if rms <= 1e-12 {
             continue;
         }
         let inv_rms = 1.0 / rms;
-        let x_norm = &ws.x_mid_norm[t * d..(t + 1) * d];
-        let d_b_tok = &ws.d_b[t * d..(t + 1) * d];
-
-        let mut dot_db_gamma_x = 0.0f32;
+        let mut dot = 0.0f32;
         for c in 0..d {
-            let gamma = layer.ffn_norm_gamma[c];
-            grad.ffn_norm_gamma[c] += d_b_tok[c] * x_norm[c];
-            dot_db_gamma_x += d_b_tok[c] * gamma * x_norm[c];
+            let db = ws.d_b[t * d + c];
+            let xmid_norm = ws.x_mid_norm[t * d + c];
+            grad.ffn_norm_gamma[c] += db * xmid_norm;
+
+            let d_norm = db * layer.ffn_norm_gamma[c];
+            dot += d_norm * ws.x_mid[t * d + c];
         }
 
+        let mean_dot = dot / (d as f32 * rms * rms);
         for c in 0..d {
-            let gamma = layer.ffn_norm_gamma[c];
-            let d_norm = d_b_tok[c] * gamma;
-            ws.d_x_mid[t * d + c] += inv_rms * (d_norm - x_norm[c] * dot_db_gamma_x / d as f32);
+            let d_norm = ws.d_b[t * d + c] * layer.ffn_norm_gamma[c];
+            let dxmid = inv_rms * (d_norm - ws.x_mid[t * d + c] * mean_dot);
+            ws.d_x_mid[t * d + c] += dxmid;
         }
     }
 
-    // 6. Residual connection & Output projection W_o
-    for t in 0..seq_len {
-        for c in 0..d {
-            let dx_mid = ws.d_x_mid[t * d + c];
-            ws.d_x_0[t * d + c] += dx_mid;
-            ws.d_attn_out[t * d + c] += dx_mid;
-        }
+    // 5. Backward through First Residual: x_mid = x_0 + attn_out
+    for i in 0..seq_len * d {
+        let dxm = ws.d_x_mid[i];
+        ws.d_x_0[i] += dxm;
+        ws.d_attn_out[i] += dxm;
+    }
 
+    // 6. Backward through Output Projection: attn_out = y * W_o^T
+    for t in 0..seq_len {
         let y_tok = &ws.y[t * d..(t + 1) * d];
         for c in 0..d {
             let da_val = ws.d_attn_out[t * d + c];
@@ -1002,7 +894,7 @@ pub fn backward_loss(
         }
     }
 
-    // 7. Backward through SRX Attention Recurrence with 2nd-Order RLS, Krylov Depth & Phase Momentum
+    // 7. Backward through SRX Attention Recurrence with Pure Orthogonal Projector and Clean MUSIC
     for h in 0..n_heads {
         let h_off = h * head_dim;
         let span_theta = 4;
@@ -1011,7 +903,6 @@ pub fn backward_loss(
         // Recurrence accumulators for reverse-time unroll
         let mut d_m_acc = [0.0f32; 16];
         let mut d_thetas_acc = [0.0f32; 4];
-        let mut d_p_thetas_acc = [0.0f32; 4];
 
         for t in (0..seq_len).rev() {
             let q_norm_off = (t * n_heads + h) * head_dim;
@@ -1020,13 +911,12 @@ pub fn backward_loss(
             let m_off = (t * n_heads + h) * span_m;
             let y_ret_off = (t * n_heads + h) * head_dim;
             let e_off = (t * n_heads + h) * head_dim;
-            let v_p_off = (t * n_heads + h) * head_dim;
 
             let curr_thetas: &[f32; 4] = ws.thetas[thetas_off..thetas_off + 4].try_into().unwrap();
             let w_val = ws.w[t * n_heads + h];
             let w_clamped = ws.w_clamped[t * n_heads + h];
 
-            // Adjoint from y_head
+            // 1. Adjoint from y_head
             let mut d_y_ret = [0.0f32; 4];
             let mut d_w_clamped = 0.0f32;
 
@@ -1051,7 +941,7 @@ pub fn backward_loss(
             d_q_inv[2] = 2.0 * d_noise_energy * ws.q_inv[q_norm_off + 2];
             d_q_inv[3] = 2.0 * d_noise_energy * ws.q_inv[q_norm_off + 3];
 
-            // Readout: y_ret = M_t^T q_rot => d_q_rot = M_t * d_y_ret, d_M_read = q_rot * d_y_ret^T
+            // 2. Readout: y_ret = M_t^T * q_rot => d_q_rot = M_t * d_y_ret, d_M_read = q_rot * d_y_ret^T
             let mut d_q_rot = [0.0f32; 4];
             let mut d_m_total = [0.0f32; 16];
             for row in 0..4 {
@@ -1063,194 +953,39 @@ pub fn backward_loss(
                 }
             }
 
-            let q_1_arr: &[f32; 4] = ws.q_1[q_norm_off..q_norm_off + 4].try_into().unwrap();
-
-            // Backward through q_rot Butterfly rotation (forward mode)
-            let mut d_q1_rot = [0.0f32; 4];
-            apply_butterfly_4_backward(
-                q_1_arr,
-                curr_thetas,
-                false,
-                &d_q_rot,
-                &mut d_q1_rot,
-                &mut d_thetas_acc,
-            );
-
-            // Backward through q_inv Butterfly rotation (inverse mode)
-            let mut d_q1_inv = [0.0f32; 4];
-            apply_butterfly_4_backward(
-                q_1_arr,
-                curr_thetas,
-                true,
-                &d_q_inv,
-                &mut d_q1_inv,
-                &mut d_thetas_acc,
-            );
-
-            let mut d_q1 = [0.0f32; 4];
-            for c in 0..4 {
-                d_q1[c] = d_q1_rot[c] + d_q1_inv[c];
-            }
-
-            // Backward through Krylov L2-norm: q^{(1)} = l2_normalize(q_combo)
-            let q_combo_arr: &[f32; 4] = ws.q_combo[q_norm_off..q_norm_off + 4].try_into().unwrap();
-            let norm_combo = ws.norm_q_combo[t * n_heads + h];
-            let mut d_q_combo = [0.0f32; 4];
-            l2_normalize_backward(q_combo_arr, q_1_arr, norm_combo, &d_q1, &mut d_q_combo);
-
-            // Backward through q_combo = 0.5 * q^{(0)} + 0.5 * u_q0
-            let mut d_u_q0 = [0.0f32; 4];
-            let mut d_q0_direct = [0.0f32; 4];
-            for i in 0..4 {
-                d_u_q0[i] = 0.5 * d_q_combo[i];
-                d_q0_direct[i] = 0.5 * d_q_combo[i];
-            }
-
-            // Backward through u_q0 = U(thetas) * q^{(0)}
+            // 3. Backward through query Butterfly rotations:
             let q_norm_arr: &[f32; 4] = ws.q_norm[q_norm_off..q_norm_off + 4].try_into().unwrap();
-            let mut d_q0_rot = [0.0f32; 4];
+
+            // Backward through q_rot = U(thetas) * q_norm (forward mode)
+            let mut d_q_norm_rot = [0.0f32; 4];
             apply_butterfly_4_backward(
                 q_norm_arr,
                 curr_thetas,
                 false,
-                &d_u_q0,
-                &mut d_q0_rot,
+                &d_q_rot,
+                &mut d_q_norm_rot,
+                &mut d_thetas_acc,
+            );
+
+            // Backward through q_inv = U^\dagger(thetas) * q_norm (inverse mode)
+            let mut d_q_norm_inv = [0.0f32; 4];
+            apply_butterfly_4_backward(
+                q_norm_arr,
+                curr_thetas,
+                true,
+                &d_q_inv,
+                &mut d_q_norm_inv,
                 &mut d_thetas_acc,
             );
 
             let mut d_q_norm_total = [0.0f32; 4];
             for i in 0..4 {
-                d_q_norm_total[i] = d_q0_direct[i] + d_q0_rot[i];
+                d_q_norm_total[i] = d_q_norm_rot[i] + d_q_norm_inv[i];
             }
 
-            // 2nd-Order RLS Backward:
-            // M_t[r, c] = \lambda * M_{t-1}[r, c] + k_gain[r] * e_t[c]
-            // where e_t[c] = v_raw_h[c] - sum_{r'} k_rot[r'] * M_{t-1}[r', c]
-            let pm_off = (t.saturating_sub(1) * n_heads + h) * span_m;
-            let pp_off = (t.saturating_sub(1) * n_heads + h) * span_m;
-            let e_arr = &ws.e_t[e_off..e_off + 4];
-            let k_gain_arr = &ws.k_gain[q_norm_off..q_norm_off + 4];
-            let denom_val = ws.denom[t * n_heads + h];
-            let v_p_arr = &ws.v_p[v_p_off..v_p_off + 4];
-
-            // 1. d_e_t[c] = sum_r (d_m_total[r, c] * k_gain[r])
-            let mut d_e = [0.0f32; 4];
-            for col in 0..4 {
-                let mut sum_ke = 0.0f32;
-                for row in 0..4 {
-                    sum_ke += d_m_total[row * 4 + col] * k_gain_arr[row];
-                }
-                d_e[col] = sum_ke;
-            }
-
-            // 2. d_v_raw[c] += d_e_t[c]
-            for col in 0..4 {
-                ws.d_v_raw[t * d + h_off + col] += d_e[col];
-            }
-
-            // 3. d_k_gain[r] = sum_c (d_m_total[r, c] * e_t[c])
-            let mut d_k_gain = [0.0f32; 4];
-            for row in 0..4 {
-                let mut sum_ge = 0.0f32;
-                for col in 0..4 {
-                    sum_ge += d_m_total[row * 4 + col] * e_arr[col];
-                }
-                d_k_gain[row] = sum_ge;
-            }
-
-            // 4. From k_gain = v_p / denom:
-            let inv_denom = 1.0 / denom_val;
-            let mut d_v_p = [0.0f32; 4];
-            for r in 0..4 {
-                d_v_p[r] = d_k_gain[r] * inv_denom;
-            }
-
-            let mut dot_gk_vp = 0.0f32;
-            for r in 0..4 {
-                dot_gk_vp += d_k_gain[r] * v_p_arr[r];
-            }
-            let d_denom = -dot_gk_vp * (inv_denom * inv_denom);
-
-            // denom = \lambda + k_rot^T * v_p
-            for r in 0..4 {
-                d_v_p[r] += d_denom * ws.k_rot[k_norm_off + r];
-            }
-
-            // 5. Total d_k_rot:
-            // From v_hat: - sum_c (d_e_t[c] * M_{t-1}[r, c])
-            // From denom: d_denom * v_p[r]
-            // From v_p = P_{t-1} * k_rot: sum_c P_{t-1}[c, r] * d_v_p[c]
-            let mut d_k_rot = [0.0f32; 4];
-            for row in 0..4 {
-                let mut term_vhat = 0.0f32;
-                for col in 0..4 {
-                    if t > 0 {
-                        term_vhat += d_e[col] * ws.m[pm_off + row * 4 + col];
-                    }
-                }
-
-                let mut term_p = 0.0f32;
-                for c in 0..4 {
-                    let p_val = if t > 0 {
-                        ws.p_mat[pp_off + c * 4 + row]
-                    } else if c == row {
-                        1.0 / SRX_RLS_DELTA
-                    } else {
-                        0.0
-                    };
-                    term_p += p_val * d_v_p[c];
-                }
-
-                d_k_rot[row] = -term_vhat + d_denom * v_p_arr[row] + term_p;
-            }
-
-            // 6. Recurrence accumulator for M_{t-1}:
-            // d_M_{t-1}[r, c] = \lambda * d_M_t[r, c] - k_rot[r] * d_e[c]
-            if t > 0 {
-                for row in 0..4 {
-                    let kr = ws.k_rot[k_norm_off + row];
-                    for col in 0..4 {
-                        let idx = row * 4 + col;
-                        d_m_acc[idx] = SRX_RLS_LAMBDA * d_m_total[idx] - kr * d_e[col];
-                    }
-                }
-            } else {
-                d_m_acc.fill(0.0);
-            }
-
-            // 7. Backward through k_rot = U(\theta_t) * k_norm
-            let mut d_k_norm = [0.0f32; 4];
-            let k_norm_arr: &[f32; 4] = ws.k_norm[k_norm_off..k_norm_off + 4].try_into().unwrap();
-            apply_butterfly_4_backward(
-                k_norm_arr,
-                curr_thetas,
-                false,
-                &d_k_rot,
-                &mut d_k_norm,
-                &mut d_thetas_acc,
-            );
-
-            // 8. Backward through Phase Momentum:
-            // Forward:
-            // p_{\theta, t} = \mu * p_{\theta, t-1} + \alpha * (k_norm \odot v_raw_h)
-            // \theta_t = \theta_{t-1} + p_{\theta, t}
-            let d_theta_total = d_thetas_acc;
-            for i in 0..4 {
-                let d_p = d_p_thetas_acc[i] + d_theta_total[i];
-                let k_val = ws.k_norm[k_norm_off + i];
-                let v_val = ws.v_raw[t * d + h_off + i];
-                d_k_norm[i] += SRX_ALPHA * d_p * v_val;
-                ws.d_v_raw[t * d + h_off + i] += SRX_ALPHA * d_p * k_val;
-                d_p_thetas_acc[i] = if t > 0 { SRX_MU * d_p } else { 0.0 };
-                d_thetas_acc[i] = if t > 0 { d_theta_total[i] } else { 0.0 };
-            }
-
-            // 9. Backward through L2-normalization of q and k
+            // Backward through L2-normalization of q
             let q_raw_h = &ws.q_raw[t * d + h_off..t * d + h_off + head_dim];
-            let k_raw_h = &ws.k_raw[t * d + h_off..t * d + h_off + head_dim];
             let n_q = ws.norm_q[t * n_heads + h];
-            let n_k = ws.norm_k[t * n_heads + h];
-
             l2_normalize_backward(
                 q_raw_h,
                 q_norm_arr,
@@ -1258,17 +993,97 @@ pub fn backward_loss(
                 &d_q_norm_total,
                 &mut ws.d_q_raw[t * d + h_off..t * d + h_off + head_dim],
             );
+
+            // 4. Exact Orthogonal Projector Backward:
+            // Forward:
+            // v_hat[c] = sum_r k_rot[r] * M_{t-1}[r, c]
+            // e_t[c] = v_raw[c] - v_hat[c]
+            // M_t[r, c] = M_{t-1}[r, c] + k_rot[r] * e_t[c]
+            let k_rot_arr: &[f32; 4] = ws.k_rot[k_norm_off..k_norm_off + 4].try_into().unwrap();
+            let e_arr = &ws.e_t[e_off..e_off + 4];
+            let pm_off = (t.saturating_sub(1) * n_heads + h) * span_m;
+
+            // a) de_t[c] = sum_r k_rot[r] * dM_t[r, c]
+            let mut d_e = [0.0f32; 4];
+            for col in 0..4 {
+                let mut sum = 0.0f32;
+                for row in 0..4 {
+                    sum += k_rot_arr[row] * d_m_total[row * 4 + col];
+                }
+                d_e[col] = sum;
+            }
+
+            // b) dv_raw[c] += de_t[c]
+            for col in 0..4 {
+                ws.d_v_raw[t * d + h_off + col] += d_e[col];
+            }
+
+            // c) dk_rot[r] += sum_c dM_t[r, c] * e_t[c] - sum_c de_t[c] * M_{t-1}[r, c]
+            let mut d_k_rot = [0.0f32; 4];
+            for row in 0..4 {
+                let mut sum_me = 0.0f32;
+                let mut sum_de_m = 0.0f32;
+                for col in 0..4 {
+                    sum_me += d_m_total[row * 4 + col] * e_arr[col];
+                    let prev_m = if t > 0 { ws.m[pm_off + row * 4 + col] } else { 0.0 };
+                    sum_de_m += d_e[col] * prev_m;
+                }
+                d_k_rot[row] = sum_me - sum_de_m;
+            }
+
+            // d) dM_{t-1}[r, c] = dM_t[r, c] - k_rot[r] * de_t[c]
+            if t > 0 {
+                for row in 0..4 {
+                    let kr = k_rot_arr[row];
+                    for col in 0..4 {
+                        let idx = row * 4 + col;
+                        d_m_acc[idx] = d_m_total[idx] - kr * d_e[col];
+                    }
+                }
+            } else {
+                d_m_acc.fill(0.0);
+            }
+
+            // 5. Backward through k_rot = U(thetas) * k_norm
+            let mut d_k_norm_rot = [0.0f32; 4];
+            let k_norm_arr: &[f32; 4] = ws.k_norm[k_norm_off..k_norm_off + 4].try_into().unwrap();
+            apply_butterfly_4_backward(
+                k_norm_arr,
+                curr_thetas,
+                false,
+                &d_k_rot,
+                &mut d_k_norm_rot,
+                &mut d_thetas_acc,
+            );
+
+            // 6. Backward through Phase Dynamics:
+            // Forward: thetas_t = thetas_{t-1} + alpha * (k_norm * v_raw)
+            let d_theta_total = d_thetas_acc;
+            let mut d_k_norm_total = [0.0f32; 4];
+            for i in 0..4 {
+                let d_th = d_theta_total[i];
+                let k_val = ws.k_norm[k_norm_off + i];
+                let v_val = ws.v_raw[t * d + h_off + i];
+                d_k_norm_total[i] = d_k_norm_rot[i] + SRX_ALPHA * d_th * v_val;
+                ws.d_v_raw[t * d + h_off + i] += SRX_ALPHA * d_th * k_val;
+                d_thetas_acc[i] = if t > 0 { d_th } else { 0.0 };
+            }
+
+            // 7. Backward through L2-normalization of k
+            let k_raw_h = &ws.k_raw[t * d + h_off..t * d + h_off + head_dim];
+            let n_k = ws.norm_k[t * n_heads + h];
             l2_normalize_backward(
                 k_raw_h,
                 k_norm_arr,
                 n_k,
-                &d_k_norm,
+                &d_k_norm_total,
                 &mut ws.d_k_raw[t * d + h_off..t * d + h_off + head_dim],
             );
         }
     }
 
-    // 8. Backward through Q, K, V Projections
+    // 8. Backward through QKV linear projections:
+    // q_raw = W_q * a, k_raw = W_k * a, v_raw = W_v * a
     for t in 0..seq_len {
         let a_tok = &ws.a[t * d..(t + 1) * d];
         for i in 0..d {
@@ -1283,50 +1098,49 @@ pub fn backward_loss(
                 grad.w_k[row_off + j] += dk * aj;
                 grad.w_v[row_off + j] += dv * aj;
 
-                let da = dq * layer.attn.w_q[row_off + j]
+                ws.d_a[t * d + j] += dq * layer.attn.w_q[row_off + j]
                     + dk * layer.attn.w_k[row_off + j]
                     + dv * layer.attn.w_v[row_off + j];
-                ws.d_a[t * d + j] += da;
             }
         }
     }
 
-    // 9. Pre-Attention RMSNorm backward -> d_x_0 & grad.attn_norm_gamma
+    // 9. Backward through Pre-Attention RMSNorm: a = RMSNorm(x_0) * gamma_attn
     for t in 0..seq_len {
         let rms = ws.rms_attn[t];
         if rms <= 1e-12 {
             continue;
         }
         let inv_rms = 1.0 / rms;
-        let x_norm = &ws.x_0_norm[t * d..(t + 1) * d];
-        let d_a_tok = &ws.d_a[t * d..(t + 1) * d];
-
-        let mut dot_da_gamma_x = 0.0f32;
+        let mut dot = 0.0f32;
         for c in 0..d {
-            let gamma = layer.attn_norm_gamma[c];
-            grad.attn_norm_gamma[c] += d_a_tok[c] * x_norm[c];
-            dot_da_gamma_x += d_a_tok[c] * gamma * x_norm[c];
+            let da = ws.d_a[t * d + c];
+            let x0_norm = ws.x_0_norm[t * d + c];
+            grad.attn_norm_gamma[c] += da * x0_norm;
+
+            let d_norm = da * layer.attn_norm_gamma[c];
+            dot += d_norm * ws.x_0[t * d + c];
         }
 
+        let mean_dot = dot / (d as f32 * rms * rms);
         for c in 0..d {
-            let gamma = layer.attn_norm_gamma[c];
-            let d_norm = d_a_tok[c] * gamma;
-            ws.d_x_0[t * d + c] += inv_rms * (d_norm - x_norm[c] * dot_da_gamma_x / d as f32);
+            let d_norm = ws.d_a[t * d + c] * layer.attn_norm_gamma[c];
+            let dx0 = inv_rms * (d_norm - ws.x_0[t * d + c] * mean_dot);
+            ws.d_x_0[t * d + c] += dx0;
         }
     }
 
-    // 10. Accumulate d_x_0 into input token embeddings
+    // 10. Accumulate d_x_0 into token embeddings
     for t in 0..seq_len {
         let tok = tokens[t];
         let emb_off = tok * d;
-        let grad_emb = &mut grad.token_embeddings[emb_off..emb_off + d];
         for c in 0..d {
-            grad_emb[c] += ws.d_x_0[t * d + c];
+            grad.token_embeddings[emb_off + c] += ws.d_x_0[t * d + c];
         }
     }
 }
 
-/// Splits token stream into sub-sequences strictly segmented by `<eos>` delimiters.
+/// Splits a flat token stream into discrete sequence slices delimited by EOS.
 pub fn split_into_eos_sequences(tokens: &[usize], max_seq_len: usize) -> Vec<Vec<usize>> {
     let mut seqs = Vec::new();
     let mut current = Vec::new();
@@ -1335,9 +1149,9 @@ pub fn split_into_eos_sequences(tokens: &[usize], max_seq_len: usize) -> Vec<Vec
         current.push(tok);
         if tok == EOS_TOKEN_ID || current.len() >= max_seq_len {
             if current.len() >= 2 {
-                seqs.push(current);
+                seqs.push(current.clone());
             }
-            current = Vec::new();
+            current.clear();
         }
     }
 
@@ -1420,7 +1234,7 @@ mod tests {
 
     #[test]
     fn test_srx_v05_gradient_check_numerical() {
-        let config = TransformerConfig::lang_v3();
+        let config = TransformerConfig::lang_chinchilla();
         let mut model = SrxTransformer::new_with_seed(config.clone(), 42).unwrap();
         let mut ws = SrxTrainWorkspace::new(&config);
         let mut grad = SrxGrad::new(&config);
@@ -1435,7 +1249,7 @@ mod tests {
         assert!(loss > 0.0 && loss.is_finite());
         assert!(grad.l2_norm() > 0.0);
 
-        // Finite difference check on W_q
+        // Finite difference check on W_q with precision < 5e-3
         let eps = 1e-3f32;
         for i in 0..4 {
             let orig = model.layers[0].attn.w_q[i];
@@ -1451,16 +1265,18 @@ mod tests {
             let num_grad = (loss_plus - loss_minus) / (2.0 * eps);
             let ana_grad = grad.w_q[i];
 
+            let diff = (ana_grad - num_grad).abs();
             assert!(
-                (ana_grad - num_grad).abs() < 2e-2,
-                "W_q[{}] gradient mismatch: ana={}, num={}",
+                diff < 5e-3,
+                "W_q[{}] gradient mismatch: ana={}, num={}, diff={}",
                 i,
                 ana_grad,
-                num_grad
+                num_grad,
+                diff
             );
         }
 
-        // Finite difference check on W_1
+        // Finite difference check on W_1 with precision < 5e-3
         for i in 0..4 {
             let orig = model.layers[0].mlp.w_1[i];
 
@@ -1475,12 +1291,40 @@ mod tests {
             let num_grad = (loss_plus - loss_minus) / (2.0 * eps);
             let ana_grad = grad.w_1[i];
 
+            let diff = (ana_grad - num_grad).abs();
             assert!(
-                (ana_grad - num_grad).abs() < 2e-2,
-                "W_1[{}] gradient mismatch: ana={}, num={}",
+                diff < 5e-3,
+                "W_1[{}] gradient mismatch: ana={}, num={}, diff={}",
                 i,
                 ana_grad,
-                num_grad
+                num_grad,
+                diff
+            );
+        }
+
+        // Finite difference check on W_v with precision < 5e-3
+        for i in 0..4 {
+            let orig = model.layers[0].attn.w_v[i];
+
+            model.layers[0].attn.w_v[i] = orig + eps;
+            let loss_plus = forward_loss(&model, &tokens, &mut ws, 1.0);
+
+            model.layers[0].attn.w_v[i] = orig - eps;
+            let loss_minus = forward_loss(&model, &tokens, &mut ws, 1.0);
+
+            model.layers[0].attn.w_v[i] = orig;
+
+            let num_grad = (loss_plus - loss_minus) / (2.0 * eps);
+            let ana_grad = grad.w_v[i];
+
+            let diff = (ana_grad - num_grad).abs();
+            assert!(
+                diff < 5e-3,
+                "W_v[{}] gradient mismatch: ana={}, num={}, diff={}",
+                i,
+                ana_grad,
+                num_grad,
+                diff
             );
         }
     }

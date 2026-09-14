@@ -219,6 +219,16 @@ impl SrxTransformer {
         generated
     }
 
+    /// High-level dataset training API wrapper.
+    pub fn train_dataset(
+        &mut self,
+        tokens: &[usize],
+        epochs: usize,
+        lr: f32,
+    ) -> crate::classic::telemetry::TrainTelemetry {
+        super::train::train_dataset(self, tokens, epochs, lr)
+    }
+
     /// Serializes model weights to a binary file with b"SRX5" header.
     pub fn save_weights<P: AsRef<Path>>(&self, path: P) -> std::io::Result<()> {
         let mut file = File::create(path)?;
@@ -319,8 +329,6 @@ impl SrxTransformer {
                 n_heads,
                 head_dim: d_model / n_heads,
                 alpha: super::attention::SRX_ALPHA,
-                mu: super::attention::SRX_MU,
-                lambda_rls: super::attention::SRX_RLS_LAMBDA,
             };
 
             let mut ffn_norm_gamma = vec![0.0f32; d_model];
@@ -395,18 +403,18 @@ mod tests {
 
     #[test]
     fn test_srx_v05_param_count() {
-        let config = TransformerConfig::lang_v3();
+        let config = TransformerConfig::lang_chinchilla();
         let model = SrxTransformer::new(config).unwrap();
         assert_eq!(
             model.param_count(),
             896,
-            "SRX v05 must contain EXACTLY 896 trainable parameters (matching Classical Baseline)!"
+            "SRX v05 must contain EXACTLY 896 trainable parameters under Chinchilla configuration!"
         );
     }
 
     #[test]
     fn test_srx_v05_forward_step_equivalence() {
-        let config = TransformerConfig::lang_v3();
+        let config = TransformerConfig::lang_chinchilla();
         let model = SrxTransformer::new_with_seed(config.clone(), 42).unwrap();
         let mut state = SrxState::new(&config);
         let mut ws = SrxWorkspace::new(&config);

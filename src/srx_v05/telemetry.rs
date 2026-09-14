@@ -115,7 +115,7 @@ impl SrxTelemetryReport {
         s.push_str("    * СРАВНЕНИЕ ОБЪЕМА ПАМЯТИ СОСТОЯНИЯ (STATE MEMORY FOOTPRINT):\n");
         let srx_bytes = self.state_memory_bytes;
         s.push_str(&format!(
-            "      - SRX v05 State (Thetas + M + P): {} bytes (СТРОГО КОНСТАНТНО O(1), 100% L1D resident)\n",
+            "      - SRX v05 State (Thetas + M): {} bytes (СТРОГО КОНСТАНТНО O(1), 100% L1D resident)\n",
             srx_bytes
         ));
 
@@ -138,7 +138,7 @@ impl SrxTelemetryReport {
             kv_100k,
             kv_100k as f64 / srx_bytes as f64
         ));
-        s.push_str("      - Преимущество SRX v05:   RLS-память 2-го порядка, глубина Крылова K=2, фазовый импульс, 0 DRAM трафика\n\n");
+        s.push_str("      - Преимущество SRX v05:   Чистый ортогональный проектор, неискаженный MUSIC, 160B состояние, 0 DRAM трафика\n\n");
 
         s.push_str("[3] КАЧЕСТВО МОДЕЛИ (QUALITY EVALUATION - EXACT MATCH):\n");
         let passed_count = self.test_results.iter().filter(|t| t.passed).count();

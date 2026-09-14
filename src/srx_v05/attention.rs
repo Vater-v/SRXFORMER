@@ -1,27 +1,26 @@
-//! SRX Attention v05: Quantum-Algebraic Core
-//! with 2nd-Order Associative RLS Memory (Sherman-Morrison), Krylov Recurrent Depth (K=2),
-//! Monarch Butterfly Unitary Mixer with Phase Momentum, MUSIC Subspace Resonance,
+//! SRX Attention v05: Quantum-Algebraic Core («Автомат Калашникова»)
+//! with Pure Orthogonal Complement Projector Memory, Undistorted MUSIC Subspace Resonance,
+//! Monarch Butterfly Unitary Mixer with Dynamic Phase Coupling,
 //! and Strictly Zero Heap Allocations on the Hot Path.
 //!
-//! Architectural Innovations in v05:
-//! 1. Associative RLS-Memory 2nd Order:
-//!    - Inverse covariance matrix P_t \in R^{4x4} per head (P_0 = delta^{-1} I, lambda = 0.999).
-//!    - Online Sherman-Morrison rank-1 update:
-//!      v_p = P_{t-1} * k_rot
-//!      denom = lambda + k_rot^T * v_p
-//!      k_gain = v_p / denom
+//! Architectural Principles in v05:
+//! 1. Mathematical Rigor (Orthogonal Projector, Not Reflection):
+//!    - Projector onto orthogonal complement of the key:
+//!      \Pi_{k^\perp} = I - k_rot * k_rot^T (where ||k_rot||_2 = 1)
+//!    - Associative memory update:
 //!      e_t = v_raw - M_{t-1}^T * k_rot
-//!      M_t = lambda * M_{t-1} + k_gain * e_t^T
-//!      P_t = (1 / lambda) * (P_{t-1} - k_gain * (k_rot^T * P_{t-1}))
-//!    Zero learned gating parameters needed (100% algebraic and mathematically closed).
-//! 2. Krylov Recurrent Depth (K=2):
-//!    - q^{(0)} = q_norm
-//!    - q^{(1)} = L2_Norm(0.5 * q^{(0)} + 0.5 * (U_t * q^{(0)}))
-//!    Refines query vector through unitary resolvent subspace before MUSIC projection and retrieval.
-//! 3. Phase Momentum:
-//!    - p_{\theta, t} = mu * p_{\theta, t-1} + alpha * (k_norm \odot v_raw[:4]), mu=0.85, alpha=0.1
-//!    - \theta_t = \theta_{t-1} + p_{\theta, t}
-//! 4. Strictly 288 Bytes Context State (100% L1D cache resident).
+//!      M_t = M_{t-1} \Pi_{k_rot^\perp} + k_rot * v_raw^T = M_{t-1} + k_rot * e_t^T
+//!    - Exact response identity:
+//!      M_t^T * k_rot = (I - k_rot * k_rot^T) M_{t-1}^T * k_rot + v_raw * (k_rot^T * k_rot) = 0 + v_raw (1) = v_raw
+//!    - Zero heuristics, zero learned gates, zero manual decay hyperparameters lambda.
+//!      If key repeats and v matches: e_t = 0 => M_t = M_{t-1} (strictly zero memory drift!).
+//! 2. Undistorted MUSIC Subspace Resonance:
+//!    - Direct query inverse rotation: q_inv = U^\dagger(\Theta_t) * q_norm
+//!    - Noise subspace energy: E_noise = q_inv[2]^2 + q_inv[3]^2
+//!    - Resonant gain: w(q) = min(1 / (E_noise + eps), 15.0)
+//!    - Memory retrieval: y_ret = M_t^T * (U(\Theta_t) * q_norm) * w(q)
+//!    - When q = k_rot: U^\dagger * U * k_sig = k_sig = [k_0, k_1, 0, 0] => E_noise = 0 => w = 15.0!
+//! 3. Strictly 160 Bytes Context State (100% L1D cache resident).
 
 use crate::classic::config::TransformerConfig;
 use crate::classic::rng::FastRng;
@@ -30,16 +29,10 @@ use super::state::SrxState;
 
 /// Phase modulation rate alpha
 pub const SRX_ALPHA: f32 = 0.1;
-/// Phase momentum coefficient mu
-pub const SRX_MU: f32 = 0.85;
-/// RLS forgetting factor lambda
-pub const SRX_RLS_LAMBDA: f32 = 0.999;
-/// RLS initial regularization delta
-pub const SRX_RLS_DELTA: f32 = 1.0;
 /// Default inference epsilon for Dirac-like peak
 pub const SRX_EPS_DEFAULT: f32 = 1e-3;
 /// Maximum clamped gain w_max to eliminate MUSIC spectral clicks
-pub const SRX_W_MAX: f32 = 10.0;
+pub const SRX_W_MAX: f32 = 15.0;
 
 /// Super-Resolvent xFormer Attention layer v05 (Quantum-Algebraic Core).
 #[derive(Debug, Clone)]
@@ -53,8 +46,6 @@ pub struct SrxAttention {
     pub n_heads: usize,
     pub head_dim: usize,
     pub alpha: f32,
-    pub mu: f32,
-    pub lambda_rls: f32,
 }
 
 impl SrxAttention {
@@ -81,8 +72,6 @@ impl SrxAttention {
             n_heads,
             head_dim,
             alpha: SRX_ALPHA,
-            mu: SRX_MU,
-            lambda_rls: SRX_RLS_LAMBDA,
         }
     }
 
@@ -132,7 +121,7 @@ impl SrxAttention {
             v[i] = sum_v;
         }
 
-        // Per-head Quantum-Algebraic Attention with 2nd-Order RLS, Krylov Depth & Butterfly Momentum
+        // Per-head Quantum-Algebraic Attention with Pure Orthogonal Projector and Clean MUSIC
         for h in 0..n_heads {
             let h_off = h * 4;
             let q_h = [q[h_off], q[h_off + 1], q[h_off + 2], q[h_off + 3]];
@@ -145,13 +134,10 @@ impl SrxAttention {
             l2_normalize(&q_h, &mut q_norm, 1e-12);
             l2_normalize(&k_h, &mut k_norm, 1e-12);
 
-            // 2. Phase Momentum update:
-            // p_{\theta, t} = \mu * p_{\theta, t-1} + \alpha * (k_norm \odot v_raw[:4])
-            // \theta_t = \theta_{t-1} + p_{\theta, t}
-            let (thetas, p_thetas) = state.thetas_and_p_thetas_mut(h);
+            // 2. Butterfly Phase update: \theta_t = \theta_{t-1} + \alpha * (k_norm \odot v_raw)
+            let (thetas, m) = state.thetas_and_m_mut(h);
             for i in 0..4 {
-                p_thetas[i] = self.mu * p_thetas[i] + self.alpha * (k_norm[i] * v_h[i]);
-                thetas[i] += p_thetas[i];
+                thetas[i] += self.alpha * (k_norm[i] * v_h[i]);
             }
             let thetas_curr = *thetas;
 
@@ -159,44 +145,15 @@ impl SrxAttention {
             let mut k_rot = [0.0f32; 4];
             apply_butterfly_4(&k_norm, &thetas_curr, false, &mut k_rot);
 
-            // 4. 2nd-Order Associative Recursive Least Squares (Sherman-Morrison update)
-            let (m, p_mat) = state.m_and_p_mut(h);
-
-            // a) Kalman gain vector:
-            // v_p = P_{t-1} * k_rot
-            let mut v_p = [0.0f32; 4];
-            for r in 0..4 {
-                let mut sum = 0.0f32;
-                let r_off = r * 4;
-                for c in 0..4 {
-                    sum += p_mat[r_off + c] * k_rot[c];
-                }
-                v_p[r] = sum;
-            }
-
-            // denom = \lambda + k_rot^T * v_p
-            let mut k_dot_vp = 0.0f32;
-            for i in 0..4 {
-                k_dot_vp += k_rot[i] * v_p[i];
-            }
-            let denom = self.lambda_rls + k_dot_vp;
-            let inv_denom = 1.0 / denom;
-
-            // k_gain = v_p / denom
-            let mut k_gain = [0.0f32; 4];
-            for i in 0..4 {
-                k_gain[i] = v_p[i] * inv_denom;
-            }
-
-            // b) Reproduction error:
+            // 4. Pure Orthogonal Projector Associative Memory Update:
             // v_hat = M_{t-1}^T * k_rot
             let mut v_hat = [0.0f32; 4];
-            for c in 0..4 {
+            for col in 0..4 {
                 let mut sum = 0.0f32;
-                for r in 0..4 {
-                    sum += k_rot[r] * m[r * 4 + c];
+                for row in 0..4 {
+                    sum += k_rot[row] * m[row * 4 + col];
                 }
-                v_hat[c] = sum;
+                v_hat[col] = sum;
             }
 
             // e_t = v_raw - v_hat
@@ -205,72 +162,33 @@ impl SrxAttention {
                 e_t[c] = v_h[c] - v_hat[c];
             }
 
-            // c) Memory update:
-            // M_t = \lambda * M_{t-1} + k_gain * e_t^T
-            for r in 0..4 {
-                let kg = k_gain[r];
-                let r_off = r * 4;
-                for c in 0..4 {
-                    let idx = r_off + c;
-                    m[idx] = self.lambda_rls * m[idx] + kg * e_t[c];
+            // M_t = M_{t-1} + k_rot * e_t^T (Orthogonal Projector on k^\perp)
+            for row in 0..4 {
+                let kr = k_rot[row];
+                let row_off = row * 4;
+                for col in 0..4 {
+                    m[row_off + col] += kr * e_t[col];
                 }
             }
 
-            // d) Covariance update (Sherman-Morrison formula):
-            // k_trans_p = k_rot^T * P_{t-1}
-            let mut k_trans_p = [0.0f32; 4];
-            for c in 0..4 {
-                let mut sum = 0.0f32;
-                for r in 0..4 {
-                    sum += k_rot[r] * p_mat[r * 4 + c];
-                }
-                k_trans_p[c] = sum;
-            }
-
-            let inv_lambda = 1.0 / self.lambda_rls;
-            for r in 0..4 {
-                let kg = k_gain[r];
-                let r_off = r * 4;
-                for c in 0..4 {
-                    let idx = r_off + c;
-                    p_mat[idx] = inv_lambda * (p_mat[idx] - kg * k_trans_p[c]);
-                }
-            }
-
-            // 5. Krylov Recurrent Depth (K=2)
-            // q^{(0)} = q_norm
-            // u_q0 = U_t * q^{(0)}
-            let mut u_q0 = [0.0f32; 4];
-            apply_butterfly_4(&q_norm, &thetas_curr, false, &mut u_q0);
-
-            // q_combo = 0.5 * q^{(0)} + 0.5 * u_q0
-            let mut q_combo = [0.0f32; 4];
-            for i in 0..4 {
-                q_combo[i] = 0.5 * q_norm[i] + 0.5 * u_q0[i];
-            }
-
-            // q^{(1)} = L2_Norm(q_combo)
-            let mut q_1 = [0.0f32; 4];
-            l2_normalize(&q_combo, &mut q_1, 1e-12);
-
-            // 6. MUSIC Noise Subspace Projector using q^{(1)}:
-            // q_inv = U^\dagger(Theta) q^{(1)}
+            // 5. Undistorted MUSIC Noise Subspace Projector directly on q_norm:
+            // q_inv = U^\dagger(Theta_t) * q_norm
             let mut q_inv = [0.0f32; 4];
-            apply_butterfly_4(&q_1, &thetas_curr, true, &mut q_inv);
+            apply_butterfly_4(&q_norm, &thetas_curr, true, &mut q_inv);
 
             // Signal rank r = 2; noise subspace is coordinates 2..4
             let noise_energy = q_inv[2] * q_inv[2] + q_inv[3] * q_inv[3];
 
-            // Dirac-like resonant gain with hard clipping
+            // Dirac-like resonant gain with hard clipping at 15.0
             let w = 1.0 / (noise_energy + eps);
             let w_clamped = w.min(SRX_W_MAX);
 
-            // 7. Memory retrieval using q^{(1)}:
-            // q_rot = U(Theta) q^{(1)}
+            // 6. Memory retrieval:
+            // q_rot = U(Theta_t) * q_norm
             let mut q_rot = [0.0f32; 4];
-            apply_butterfly_4(&q_1, &thetas_curr, false, &mut q_rot);
+            apply_butterfly_4(&q_norm, &thetas_curr, false, &mut q_rot);
 
-            // y_ret = M_t^T q_rot
+            // y_ret = M_t^T * q_rot * w(q)
             for col in 0..4 {
                 let mut sum_m = 0.0f32;
                 for row in 0..4 {
@@ -280,7 +198,7 @@ impl SrxAttention {
             }
         }
 
-        // 8. Post-MUSIC RMSNorm across multi-head retrieved output vector
+        // 7. Post-MUSIC RMSNorm across multi-head retrieved output vector
         let mut sum_sq = 0.0f32;
         for c in 0..8 {
             sum_sq += y_heads[c] * y_heads[c];
@@ -291,7 +209,7 @@ impl SrxAttention {
             y_heads[c] *= inv_rms;
         }
 
-        // 9. Output projection: out = W_o * y_heads
+        // 8. Output projection: out = W_o * y_heads
         for c in 0..8 {
             let mut sum_o = 0.0f32;
             let row_off = c * 8;
@@ -312,11 +230,11 @@ impl SrxAttention {
     ) {
         let d = self.d_model;
         let cfg = TransformerConfig {
-            vocab_size: 53,
+            vocab_size: 65,
             d_model: self.d_model,
             n_heads: self.n_heads,
             n_layers: 1,
-            d_ff: 12,
+            d_ff: 6,
             max_seq_len: seq_len.max(32),
             eps: 1e-5,
             norm_type: crate::classic::config::NormType::RMSNorm,
@@ -333,5 +251,144 @@ impl SrxAttention {
             self.step(x_tok, &mut state, out_tok, eps);
             state.current_pos = t + 1;
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_projector_exact_reproduction() {
+        // Validates M_t^T * k_rot == v_raw with tolerance 1e-6
+        // for multiple arbitrary unit vectors k_rot and arbitrary vectors v_raw.
+        let mut m = [
+            0.15f32, -0.42, 0.88, -0.11,
+            -0.65, 0.33, 0.12, 0.77,
+            0.45, -0.90, 0.23, -0.55,
+            0.08, 0.71, -0.34, 0.62,
+        ];
+
+        let test_cases = [
+            ([0.5f32, -0.5, 0.5, -0.5], [1.2f32, -3.4, 0.7, 2.1]),
+            ([0.8f32, 0.0, -0.6, 0.0], [-0.5f32, 4.2, -1.8, 0.9]),
+            ([0.1f32, 0.7, -0.2, 0.67823299], [3.0f32, 1.5, -2.2, 0.4]),
+        ];
+
+        for (k_unnorm, v_raw) in test_cases {
+            let mut k_rot = [0.0f32; 4];
+            l2_normalize(&k_unnorm, &mut k_rot, 1e-12);
+
+            // Compute v_hat = M_{t-1}^T * k_rot
+            let mut v_hat = [0.0f32; 4];
+            for col in 0..4 {
+                let mut sum = 0.0f32;
+                for row in 0..4 {
+                    sum += k_rot[row] * m[row * 4 + col];
+                }
+                v_hat[col] = sum;
+            }
+
+            // e_t = v_raw - v_hat
+            let mut e_t = [0.0f32; 4];
+            for c in 0..4 {
+                e_t[c] = v_raw[c] - v_hat[c];
+            }
+
+            // M_t = M_{t-1} + k_rot * e_t^T
+            for row in 0..4 {
+                let kr = k_rot[row];
+                for col in 0..4 {
+                    m[row * 4 + col] += kr * e_t[col];
+                }
+            }
+
+            // Verification: M_t^T * k_rot == v_raw
+            let mut v_reproduced = [0.0f32; 4];
+            for col in 0..4 {
+                let mut sum = 0.0f32;
+                for row in 0..4 {
+                    sum += k_rot[row] * m[row * 4 + col];
+                }
+                v_reproduced[col] = sum;
+            }
+
+            for c in 0..4 {
+                let diff = (v_reproduced[c] - v_raw[c]).abs();
+                assert!(
+                    diff < 1e-6,
+                    "Orthogonal projector reproduction failed at c={}: expected {}, got {}, diff={}",
+                    c,
+                    v_raw[c],
+                    v_reproduced[c],
+                    diff
+                );
+            }
+
+            // Zero memory drift check: repeated key with same v produces e_t = 0 and M unchanged
+            let m_before = m;
+            let mut v_hat2 = [0.0f32; 4];
+            for col in 0..4 {
+                let mut sum = 0.0f32;
+                for row in 0..4 {
+                    sum += k_rot[row] * m[row * 4 + col];
+                }
+                v_hat2[col] = sum;
+            }
+            let mut e_t2 = [0.0f32; 4];
+            for c in 0..4 {
+                e_t2[c] = v_raw[c] - v_hat2[c];
+                assert!(e_t2[c].abs() < 1e-6, "Repeated key must have e_t == 0");
+            }
+            for row in 0..4 {
+                for col in 0..4 {
+                    m[row * 4 + col] += k_rot[row] * e_t2[col];
+                }
+            }
+            for idx in 0..16 {
+                assert!(
+                    (m[idx] - m_before[idx]).abs() < 1e-6,
+                    "Memory must not drift on repeated key"
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn test_music_peak_trigger() {
+        // When q = k_rot (where k_rot = U(Theta) * k_sig with k_sig = [k0, k1, 0, 0]):
+        // noise energy is strictly 0 and gain w reaches exact maximum SRX_W_MAX (15.0).
+        let thetas = [0.45f32, -1.2, 0.88, -0.35];
+
+        // Signal subspace has zero in coordinates [2] and [3]
+        let k_sig = [0.6f32, 0.8, 0.0, 0.0];
+
+        // k_rot = U(Theta) * k_sig
+        let mut k_rot = [0.0f32; 4];
+        apply_butterfly_4(&k_sig, &thetas, false, &mut k_rot);
+
+        // In query: q_norm = k_rot
+        let q_norm = k_rot;
+
+        // Inverse rotation: q_inv = U^\dagger(Theta) * q_norm
+        let mut q_inv = [0.0f32; 4];
+        apply_butterfly_4(&q_norm, &thetas, true, &mut q_inv);
+
+        // Noise energy = q_inv[2]^2 + q_inv[3]^2
+        let noise_energy = q_inv[2] * q_inv[2] + q_inv[3] * q_inv[3];
+
+        assert!(
+            noise_energy < 1e-6,
+            "Noise energy must be 0 for signal subspace, got {}",
+            noise_energy
+        );
+
+        let eps = 1e-3f32;
+        let w = (1.0 / (noise_energy + eps)).min(SRX_W_MAX);
+        assert_eq!(
+            w, SRX_W_MAX,
+            "Dirac resonant gain must trigger to maximum 15.0, got {}",
+            w
+        );
     }
 }
