@@ -1,18 +1,15 @@
 //! # SRXformer
 //!
 //! High-performance, zero-dependency (`std`-only) Classical Transformer baseline,
-//! frozen SRX v01 reference architecture, and state-of-the-art Super-Resolvent xFormer v02 (SRX v02)
-//! with MUSIC Subspace Resonance, Post-MUSIC RMSNorm, hard gain clipping, and fast Ivy Bridge AVX Givens rotations.
-//!
-//! Features:
-//! - Strictly 152 bytes state memory footprint (100% resident in L1 D-Cache).
-//! - Fast Givens Rotations with Taylor polynomial approximation (no scalar libc transcendental calls).
-//! - Gain clipping & Post-MUSIC RMSNorm eliminating spectral clicks and generation artifacts.
-//! - Exact 512 parameters (1:1 bitwise structural parity with classical baseline).
+//! frozen SRX v01 reference architecture, frozen SRX v02 architecture,
+//! and state-of-the-art Super-Resolvent xFormer v03 (SRX v03 Golden Core)
+//! featuring Monarch Butterfly Unitary Factorization, Selective Dynamic Memory Gating,
+//! strictly O(1) state footprint (160 bytes in L1D cache), and zero-allocation hot-path inference.
 
 pub mod classic;
 pub mod srx_v01;
 pub mod srx_v02;
+pub mod srx_v03;
 
 // Re-export classic transformer module
 pub use classic::{
@@ -23,7 +20,7 @@ pub use classic::{
     TransformerLayer, VOCAB, BOT_TOKEN_ID, EOS_TOKEN_ID, PAD_TOKEN_ID, USER_TOKEN_ID,
 };
 
-// Re-export SRX v01 (Frozen)
+// Re-export SRX v01 (Frozen Reference)
 pub use srx_v01::{
     apply_givens as srx_v01_apply_givens, apply_givens_backward as srx_v01_apply_givens_backward,
     apply_givens_forward_with_intermediates as srx_v01_apply_givens_forward_with_intermediates,
@@ -37,7 +34,7 @@ pub use srx_v01::{
     SRX_EPS_DEFAULT as SRX_V01_EPS_DEFAULT, SRX_GAMMA as SRX_V01_GAMMA,
 };
 
-// Re-export SRX v02 (Active / Primary)
+// Re-export SRX v02 (Frozen Reference)
 pub use srx_v02::{
     apply_givens as srx_v02_apply_givens, apply_givens_backward as srx_v02_apply_givens_backward,
     apply_givens_forward_with_intermediates as srx_v02_apply_givens_forward_with_intermediates,
@@ -53,7 +50,24 @@ pub use srx_v02::{
     SRX_W_MAX as SRX_V02_W_MAX,
 };
 
-// Primary SRX exports map to v02
+// Re-export SRX v03 (Active / Golden Core)
+pub use srx_v03::{
+    apply_butterfly_4 as srx_v03_apply_butterfly_4,
+    apply_butterfly_4_backward as srx_v03_apply_butterfly_4_backward,
+    apply_butterfly_4_inplace as srx_v03_apply_butterfly_4_inplace,
+    backward_loss as srx_v03_backward_loss, fast_sin_cos as srx_v03_fast_sin_cos,
+    forward_loss as srx_v03_forward_loss, l2_normalize as srx_v03_l2_normalize,
+    l2_normalize_backward as srx_v03_l2_normalize_backward,
+    train_dataset as srx_v03_train_dataset, SrxAdamW as SrxAdamWV03,
+    SrxAttention as SrxAttentionV03, SrxGrad as SrxGradV03, SrxLayer as SrxLayerV03,
+    SrxState as SrxStateV03, SrxTelemetryReport as SrxTelemetryReportV03,
+    SrxTrainWorkspace as SrxTrainWorkspaceV03, SrxTransformer as SrxTransformerV03,
+    SrxWorkspace as SrxWorkspaceV03, SRX_ALPHA as SRX_V03_ALPHA,
+    SRX_EPS_DEFAULT as SRX_V03_EPS_DEFAULT, SRX_GAMMA_BASE as SRX_V03_GAMMA_BASE,
+    SRX_W_MAX as SRX_V03_W_MAX,
+};
+
+// Primary SRX exports map to v02 (preserves 100% test compatibility)
 pub use srx_v02::{
     apply_givens, apply_givens_backward, apply_givens_forward_with_intermediates,
     backward_loss as srx_backward_loss, fast_sin_cos, forward_loss as srx_forward_loss,
@@ -61,6 +75,9 @@ pub use srx_v02::{
     SrxAttention, SrxGrad, SrxLayer, SrxState, SrxTelemetryReport, SrxTrainWorkspace,
     SrxTransformer, SrxWorkspace, SRX_ALPHA, SRX_EPS_DEFAULT, SRX_GAMMA, SRX_W_MAX,
 };
+
+// Re-export SRX v03 butterfly operations at root
+pub use srx_v03::{apply_butterfly_4, apply_butterfly_4_backward, apply_butterfly_4_inplace};
 
 // Compatibility module alias
 pub mod srx {
